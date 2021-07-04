@@ -1,4 +1,6 @@
 
+#default music true
+
 import List
 import audio
 import "Character.adept"
@@ -36,10 +38,12 @@ struct GameData (
 
         this.lies = embed 'static_assets/lies.txt'.splitIntoViews("\n")
         this.lies.length = NUM_FACTS
-
+        
+        #if music
         this.happy1.load(where() + "assets/happy_adventure.ogg", true, 1.5f)
         this.raining_bits.load(where() + "assets/raining_bits.ogg", true, 0.8f)
         this.cant_stop_winning.load(where() + "assets/cant_stop_winning.ogg", true, 0.8f)
+        #end
 
         this.winner = -1
     }

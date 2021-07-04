@@ -27,13 +27,7 @@ struct ScoreScene (
             }
         }
 
-        if largest_score >= 100 {
-            this.text.append("\nP" + toString(largest_score_owner + 1) + " " + getName(gamedata.characters[largest_score_owner]) + " wins!!!\n")
-            this.winner = largest_score_owner
-        } else {
-            this.winner = -1
-        }
-
+        this.winner = largest_score >= 100 ? largest_score_owner : -1
         this.text.append("\npress start to continue...")
     }
 
