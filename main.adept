@@ -9,9 +9,9 @@ pragma default_stdlib '2.5'
 import basics
 import captain
 
-import "GameData.adept"
-import "Textures.adept"
-import "drawing.adept"
+import "src/GameData.adept"
+import "src/Textures.adept"
+import "src/drawing.adept"
 
 func main {
     captOnSetup(func &onSetup)
