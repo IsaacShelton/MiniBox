@@ -1,0 +1,11 @@
+
+import "Scene.adept"
+
+struct MainMenu (
+    struct Scene
+) {
+    func enter {}
+    func exit {}
+    func step {}
+    func draw {}
+}

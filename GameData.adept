@@ -1,0 +1,156 @@
+
+import List
+import audio
+import "Character.adept"
+import "MainMenu.adept"
+import "SelectScene.adept"
+import "ScoreScene.adept"
+import "WinnerScene.adept"
+import "HurdleScene.adept"
+
+define NUM_FACTS = 120
+
+struct GameData (
+    scene *Scene,
+    gamepads <Gamepad> List,
+    facts <String> List,
+    lies <String> List,
+    characters 4 Character,
+    scores 4 int,
+    happy1,
+    raining_bits,
+    cant_stop_winning PlayableSound,
+    winner int
+) {
+    func __defer__ {
+        if this.scene, this.scene.__defer__()
+        audioTerminate()
+    }
+
+    func load {
+        audioInit()
+        defer this.setScene(new MainMenu)
+
+        this.facts = embed 'assets/facts.txt'.splitIntoViews("\n")
+        this.facts.length = NUM_FACTS
+
+        this.lies = embed 'assets/lies.txt'.splitIntoViews("\n")
+        this.lies.length = NUM_FACTS
+
+        this.happy1.load(where() + "assets/happy_adventure.ogg", true, 1.5f)
+        this.raining_bits.load(where() + "assets/raining_bits.ogg", true, 0.8f)
+        this.cant_stop_winning.load(where() + "assets/cant_stop_winning.ogg", true, 0.8f)
+
+        this.winner = -1
+    }
+    
+    func reset {
+        this.__defer__()
+        memset(this, 0, sizeof(*this))
+        this.load()
+    }
+
+    func setScene(existing_scene *Scene) {
+        if this.scene, this.scene.__defer__()
+        this.scene = existing_scene
+        this.scene.enter() 
+    }
+
+    func setScene(new_scene *$SceneLike) {
+        if this.scene, this.scene.__defer__()
+        this.scene = scene(new_scene)
+        this.scene.enter()
+    }
+
+    func step {
+        this.updateGamepads()
+        if this.scene, this.scene.step()
+    }
+
+    func draw {
+        if this.scene, this.scene.draw()
+    }
+
+    func updateGamepads(){
+        repeat 4, this.maybeAddGamepad(GLFW_JOYSTICK_1 + idx)
+    }
+
+    func maybeAddGamepad(joystick int){
+        gamepad *Gamepad = this.gamepads.find(joystick)
+
+        unless glfwJoystickPresent(joystick) {
+            this.gamepads.removeIfExists(joystick)
+            return
+        }
+
+        if gamepad == null {
+            gamepad = this.gamepads.add()
+            gamepad.id = joystick
+        }        
+
+        prev_buttons 10 ubyte = undef
+        memcpy(prev_buttons at 0, gamepad.buttons at 0, sizeof ubyte * 10)
+
+        axes *float = glfwGetJoystickAxes(joystick, undef axes_count int)
+        buttons *ubyte = glfwGetJoystickButtons(joystick, undef buttons_count int)
+
+        if axes_count > 0 {
+            prev_x int = gamepad.x
+            prev_y int = gamepad.y
+            gamepad.x = cast int clamp(axes[0] * 2.0f, -1.0f, 1.0f)
+            gamepad.y = cast int clamp(axes[1] * 2.0f, -1.0f, 1.0f)
+            gamepad.just_x = gamepad.x != prev_x
+            gamepad.just_y = gamepad.y != prev_y
+        }
+
+        if buttons_count >= 10 {
+            memcpy(gamepad.buttons at 0, buttons, 10 * sizeof ubyte)
+        }
+
+        repeat 10 {
+            gamepad.just[idx] = prev_buttons[idx] != buttons[idx]
+        }
+    }
+}
+
+gamedata GameData
+
+struct Gamepad(id int, x, y int, just_x, just_y bool, buttons, just 10 ubyte) {
+    func startHeld()  bool = this.buttons[9]
+    func selectHeld() bool = this.buttons[8]
+    func aHeld()      bool = this.buttons[2]
+    func bHeld()      bool = this.buttons[1]
+    func xHeld()      bool = this.buttons[0]
+    func yHeld()      bool = this.buttons[3]
+
+    func start()  bool = this.buttons[9] && this.just[9]
+    func select() bool = this.buttons[8] && this.just[8]
+    func a()      bool = this.buttons[2] && this.just[2]
+    func b()      bool = this.buttons[1] && this.just[1]
+    func x()      bool = this.buttons[0] && this.just[0]
+    func y()      bool = this.buttons[3] && this.just[3]
+
+    func right()  bool = this.x ==  1 && this.just_x
+    func left()   bool = this.x == -1 && this.just_x
+    func up()     bool = this.y == -1 && this.just_y
+    func down()   bool = this.y ==  1 && this.just_y
+
+    func rightHeld() bool = this.x == 1
+    func leftHelf()  bool = this.x == -1
+    func upHeld()    bool = this.y == -1
+    func downHeld()  bool = this.y == 1
+}
+
+func find(this *<Gamepad> List, id int) *Gamepad {
+    each Gamepad in static *this, if it.id == id, return &it
+    return null
+}
+
+func removeIfExists(this *<Gamepad> List, id int) {
+   each Gamepad in static *this, if it.id == id, this.remove(idx); return
+}
+
+func choose(this *<$T> List) *$T {
+    if this.length == 0, return null
+    return &this.items[random(this.length)]
+}

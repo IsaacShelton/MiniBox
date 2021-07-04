@@ -1,0 +1,185 @@
+
+import math
+import "Scene.adept"
+import "drawing.adept"
+import "box2d/box2d.adept"
+
+define FALLING_BODY_SIZE = 128.0f
+
+struct SelectScene (
+    struct Scene,
+    gravity b2Vec2,
+    world *b2World,
+    bodies <GravitatingBody> List,
+    enabled 4 bool,
+    ready 4 bool,
+    selected 4 int
+) {
+    func enter {
+        this.world = new b2World
+        this.gravity = b2Vec2(0.0f, 0.0f)
+        b2World(this.world, &this.gravity)
+
+        memset(this.enabled at 0, 0, sizeof bool * 4)
+        memset(this.ready at 0, 0, sizeof bool * 4)
+        memset(this.selected at 0, 0, sizeof int * 4)
+    }
+
+    func exit {
+        if this.world {
+            this.bodies.clear()
+            this.world.__defer__()
+            delete this.world
+        }
+    }
+
+    func step {
+        unless this.world, return
+
+        define time_step = 0.1f * 1.0f / 60.0f
+        define velocity_iterations = 6
+        define position_iterations = 2
+
+        this.world.Step(time_step, velocity_iterations, position_iterations)
+
+        each GravitatingBody in this.bodies {
+            b2_pos *b2Vec2 = it.body.GetPosition()
+            toScreenCoords(b2_pos.x, b2_pos.y, undef screen_x float, undef screen_y float)
+
+            out_of_bounds bool = screen_y > captViewHeight() + FALLING_BODY_SIZE
+
+            impulse POD b2Vec2 = POD b2Vec2(captViewWidth() / 2.0f - screen_x, screen_y - captViewHeight() / 2.0f)
+            impulse.Normalize()
+            impulse.MultiplyAssign(it.size_multiplier)
+            it.body.ApplyLinearImpulseToCenter(&impulse, true)
+
+            if glfwGetTime() - it.creation > 50.0f || out_of_bounds {
+                this.world.DestroyBody(it.body)
+                this.bodies.remove(idx--)
+            }
+        }
+
+        if this.bodies.length < 200 && normalizedRandom() < 0.1 * 0.07 {
+            // Add new falling body
+            texture *CaptTexture = textures.randomStaticPlayerTexture()
+
+            angle float = randomDouble() * 2.0f * PI
+            toB2Coords(cos(angle) * captViewWidth() as float + captViewWidth() / 2.0f, sin(angle) * captViewHeight() as float + captViewHeight() / 2.0f, undef b2_x float, undef b2_y float)
+
+            size_multiplier float = randomDouble() * 0.75f + 0.5f
+            size_multiplier *= size_multiplier
+            body *b2Body = this.newBody(b2_x, b2_y, size_multiplier)
+            this.bodies.add(gravitatingBody(texture, body, size_multiplier))
+        }
+
+        each Gamepad in static gamedata.gamepads {
+            array_index int = it.id - GLFW_JOYSTICK_1
+
+            if array_index >= 4 || array_index < 0, continue
+
+            if it.a() {
+                if this.enabled[array_index] {
+                    this.ready[array_index] = true
+                } else {
+                    this.enabled[array_index] = true
+                }
+            }
+            if it.b() {
+                if this.ready[array_index] {
+                    this.ready[array_index] = false
+                } else {
+                    this.enabled[array_index] = false
+                }
+            }
+            if it.x(), this.enabled[array_index] = false
+            if it.select(), gamedata.setScene(new MainMenu); return
+
+            if it.right() && !this.ready[array_index] {
+                this.selected[array_index] = this.selected[array_index] == 3 ? 0 : this.selected[array_index] + 1
+            }
+            if it.left() && !this.ready[array_index] {
+                this.selected[array_index] = this.selected[array_index] == 0 ? 3 : this.selected[array_index] - 1
+            }
+            if it.start() && this.ready[array_index] {
+                gamedata.happy1.stop()
+
+                memset(gamedata.scores at 0, 0, sizeof int * 4)
+                repeat 4, gamedata.characters[idx] = this.enabled[idx] ? cast Character this.selected[idx] : Character::NONE
+                gamedata.setScene(new ScoreScene)
+                return
+            }
+        }
+    }
+
+    func draw {
+        drawCityGrassBackground()
+
+        each GravitatingBody in static this.bodies {
+            b2_pos *b2Vec2 = it.body.GetPosition()
+            drawTextureForBox2D(*it.texture, b2_pos.x, b2_pos.y, 0.5f * it.size_multiplier * FALLING_BODY_SIZE / PPM, 0.5f * it.size_multiplier * FALLING_BODY_SIZE / PPM, it.body.GetAngle())
+            drawTextureForBox2D(textures.bubble, b2_pos.x, b2_pos.y, 0.65f * it.size_multiplier * FALLING_BODY_SIZE / PPM, 0.65f * it.size_multiplier * FALLING_BODY_SIZE / PPM, 0.0f)
+        }
+
+        x float = captViewWidth() / 2.0f - 16.0f - 32.0f - 2.0f * 160.0f
+        y float = captViewHeight() / 2.0f - 128.0f
+        repeat 4 {
+            const enabled bool = this.enabled[idx]
+            captDrawTexture(enabled ? textures.nonstandard_card : textures.card_back, x, y, 160.0f, 256.0f)
+
+            character Character = cast Character this.selected[idx]
+            name String = getName(character)
+
+            if this.enabled[idx] {
+                drawTextWithFont("P" + toString(idx + 1), x + 42.0f - captTextCharacterWidthForScale(), y + 196.0f + 30.0f, textures.bitmap_font_black)
+                drawTextWithFont(name, x + 80.0f - captTextCharacterWidthForScale(24.0f) * 0.5 * cast float name.length, y + 10.0f, textures.bitmap_font_black, 24.0f)
+
+                texture CaptTexture = getIdleTexture(character)
+
+                if this.ready[idx] {
+                    drawTextWithFont("ready", x + 80.0f + 42.0f - captTextCharacterWidthForScale() * 2.5f, y + 196.0f + 30.0f, textures.bitmap_font_black)
+                    if glfwGetTime() % 1.0 < 0.5, texture = getWalkTexture(character)
+                }
+
+                captDrawTexture(texture, x + 16.0f, y + 64.0f, 128.0f, 128.0f)
+            } else {
+                captDrawText("P" + toString(idx + 1), x + 80.0f - captTextCharacterWidthForScale(), y + 16.0f)
+                captDrawText("press a", x + 80.0f - captTextCharacterWidthForScale() * 3.5f, y + 120.0f)
+            }
+
+            x += 160.0f + 32.0f
+        }
+        
+        //captDrawTextureTiled(textures.tile, 0.0f, captViewHeight() / 2.0f, 128.0f, 128.0f, captViewWidth(), captViewHeight() * 0.5f)
+    }
+
+    func newBody(b2_x, b2_y float, size_multiplier float) *b2Body {
+        bodydef b2BodyDef = b2BodyDef()
+        bodydef.type = b2_dynamicBody
+        bodydef.position.Set(b2_x, b2_y)
+
+        body *b2Body = this.world.CreateBody(&bodydef)
+
+        shape b2CircleShape = b2CircleShape()
+        shape.m_radius = 0.5f * FALLING_BODY_SIZE * (40.0f / 64.0f) / PPM * size_multiplier
+
+        fixturedef b2FixtureDef = b2FixtureDef()
+        fixturedef.shape = &shape as *b2Shape
+        fixturedef.density = 1.0f
+        fixturedef.friction = 0.3f
+        fixturedef.restitution = 150.0f * 0.005f
+
+        body.CreateFixture(&fixturedef)
+        return body
+    }
+}
+
+struct GravitatingBody (texture *CaptTexture, body *b2Body, creation double, size_multiplier float)
+
+func gravitatingBody(texture *CaptTexture, body *b2Body, size_multiplier float) GravitatingBody {
+    result POD GravitatingBody
+    result.texture = texture
+    result.body = body
+    result.creation = glfwGetTime()
+    result.size_multiplier = size_multiplier
+    return result
+}

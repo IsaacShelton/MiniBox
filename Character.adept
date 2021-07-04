@@ -1,0 +1,45 @@
+
+import String
+
+enum Character (ANDY, ELLIE, ISAAC, ZACK, NONE)
+
+func getName(character Character) String {
+    exhaustive switch character {
+    case Character::ANDY,  return "Andy"
+    case Character::ELLIE, return "Ellie"
+    case Character::ISAAC, return "Isaac"
+    case Character::ZACK,  return "Zack"
+    case Character::NONE,  // do nothing
+    }
+    return "unknown"
+}
+
+func getIdleTexture(character Character) CaptTexture {
+    return *getIdleTexturePointer(character)
+}
+
+func getIdleTexturePointer(character Character) *CaptTexture {
+    exhaustive switch character {
+    case Character::ANDY,  return &textures.andy_idle
+    case Character::ELLIE, return &textures.ellie_idle
+    case Character::ISAAC, return &textures.isaac_idle
+    case Character::ZACK,  return &textures.zack_idle
+    case Character::NONE,  // do nothing
+    }
+    return &textures.black
+}
+
+func getWalkTexture(character Character) CaptTexture {
+    return *getWalkTexturePointer(character)
+}
+
+func getWalkTexturePointer(character Character) *CaptTexture {
+    exhaustive switch character {
+    case Character::ANDY,  return &textures.andy_walk
+    case Character::ELLIE, return &textures.ellie_walk
+    case Character::ISAAC, return &textures.isaac_walk
+    case Character::ZACK,  return &textures.zack_walk
+    case Character::NONE   // do nothing
+    }
+    return &textures.black
+}

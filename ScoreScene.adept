@@ -1,0 +1,68 @@
+
+import "Scene.adept"
+import "drawing.adept"
+
+struct ScoreScene (
+    struct Scene,
+    text String,
+    entrance double,
+    winner int
+) {
+    func enter {
+        gamedata.winner = -1
+
+        this.text.clear()
+        this.entrance = glfwGetTime()
+
+        largest_score int = 0
+        largest_score_owner int = 0
+
+        repeat 4 {
+            if gamedata.characters[idx] == Character::NONE, continue
+            this.text.append("P" + toString(idx + 1) + " " + pad(getName(gamedata.characters[idx]), 5) + " - " + gamedata.scores[idx] + " points\n")
+
+            if gamedata.scores[idx] > largest_score {
+                largest_score_owner = idx
+                largest_score = gamedata.scores[idx]
+            }
+        }
+
+        if largest_score >= 100 {
+            this.text.append("\nP" + toString(largest_score_owner + 1) + " " + getName(gamedata.characters[largest_score_owner]) + " wins!!!\n")
+            this.winner = largest_score_owner
+        } else {
+            this.winner = -1
+        }
+
+        this.text.append("\npress start to continue...")
+    }
+
+    func exit {}
+
+    func step {
+        define can_continue = this.getCount() == this.text.length
+        
+        each Gamepad in static gamedata.gamepads {
+            if can_continue && it.start() {
+                gamedata.winner = this.winner
+                gamedata.setScene(this.winner != -1 ? scene(new WinnerScene) : randomMinigame())
+                return
+            }
+        }
+    }
+
+    func draw {
+        display String = this.text.range(0, this.getCount())
+        drawTextWithFont(display, 16.0f, 16.0f, _captain_font, 16.0f)
+    }
+
+    func getCount() usize {
+        count usize = cast usize (32.0f * (glfwGetTime() - this.entrance))
+        return min(count, this.text.length)
+    }
+}
+
+func pad(original String, size usize, space String = " ") String {
+    if original.length >= size, return original
+    return original + space * (size - original.length)
+}

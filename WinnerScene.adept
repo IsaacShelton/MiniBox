@@ -1,0 +1,121 @@
+
+import "Scene.adept"
+import "drawing.adept"
+import "box2d/box2d.adept"
+
+struct WinnerScene (
+    struct Scene,
+    gravity b2Vec2,
+    world *b2World,
+    bodies <FallingBody> List,
+    dynamic_box b2PolygonShape
+) {
+    func enter {
+        gamedata.cant_stop_winning.play()
+
+        this.world = new b2World
+        this.gravity = b2Vec2(0.0f, -9.8f)
+        b2World(this.world, &this.gravity)
+
+        // Create ground body
+        if true {
+            ground_bodydef b2BodyDef = b2BodyDef()
+            
+            b2_w float = 0.5f * captViewWidth() / PPM
+            b2_h float = 0.5f * FALLING_BODY_SIZE / PPM
+            toB2Coords(0.0f, captViewHeight(), undef ground_b2_x float, undef ground_b2_y float)
+            ground_bodydef.position.Set(ground_b2_x + b2_w, ground_b2_y - b2_h)
+            ground_body *b2Body = this.world.CreateBody(&ground_bodydef)
+
+            ground_box b2PolygonShape = b2PolygonShape()
+            ground_box.SetAsBox(b2_w, b2_h)
+            ground_body.CreateFixture(&ground_box as *b2Shape, 0.0f)
+        }
+
+        // Create box shape
+        if true {
+            this.dynamic_box = b2PolygonShape()
+            this.dynamic_box.SetAsBox(0.5f * FALLING_BODY_SIZE * (40.0f / 64.0f) / PPM, 0.5f * FALLING_BODY_SIZE * (60.0f / 64.0f) / PPM)
+        }
+    }
+
+    func exit {
+        gamedata.cant_stop_winning.stop()
+
+        if this.world {
+            this.bodies.clear()
+            this.world.__defer__()
+            delete this.world
+        }
+    }
+
+    func step {
+        unless this.world, return
+
+        define time_step = 1.0f / 60.0f
+        define velocity_iterations = 6
+        define position_iterations = 2
+
+        this.world.Step(time_step, velocity_iterations, position_iterations)
+
+        each FallingBody in this.bodies {
+            b2_pos *b2Vec2 = it.body.GetPosition()
+            toScreenCoords(b2_pos.x, b2_pos.y, undef _screen_x float, undef screen_y float)
+
+            out_of_bounds bool = screen_y > captViewHeight() + FALLING_BODY_SIZE
+
+            out_of_bounds = out_of_bounds || it.body.GetLinearVelocity().Length() < 0.15
+
+            if glfwGetTime() - it.creation > 10.0f || out_of_bounds {
+                this.world.DestroyBody(it.body)
+                this.bodies.remove(idx--)
+            }
+        }
+
+        if this.bodies.length < 200 && normalizedRandom() < 0.07 {
+            // Add new falling body
+            texture *CaptTexture = getIdleTexturePointer(gamedata.characters[gamedata.winner])
+            b2_w float = 64.0f / PPM
+            toB2Coords(randomDouble() * cast double (captViewWidth() - 2.0f * b2_w) + 0.5f * b2_w, 0.0f, undef b2_x float, undef b2_y float)
+            body *b2Body = this.newBody(b2_x, b2_y)
+            this.bodies.add(fallingBody(texture, body))
+        }
+
+        each Gamepad in static gamedata.gamepads {
+            if it.start(), gamedata.setScene(new MainMenu); return
+        }
+    }
+
+    func draw {
+        drawSkyBackground()
+
+        each FallingBody in static this.bodies {
+            b2_pos *b2Vec2 = it.body.GetPosition()
+            drawTextureForBox2D(*it.texture, b2_pos.x, b2_pos.y, FALLING_BODY_SIZE / PPM, FALLING_BODY_SIZE / PPM, it.body.GetAngle())
+        }
+        
+        this.drawTitle()
+    }
+
+    func drawTitle {
+        text String = "P" + toString(gamedata.winner + 1) + " " + getName(gamedata.characters[gamedata.winner]) + " wins"
+        drawTextCentered(text, textures.bitmap_font_black, 32.0f)
+    }
+
+    func newBody(b2_x, b2_y float) *b2Body {
+        bodydef b2BodyDef = b2BodyDef()
+        bodydef.type = b2_dynamicBody
+        bodydef.position.Set(b2_x, b2_y)
+
+        body *b2Body = this.world.CreateBody(&bodydef)
+
+        fixturedef b2FixtureDef = b2FixtureDef()
+        fixturedef.shape = &this.dynamic_box as *b2Shape
+        fixturedef.density = 1.0f
+        fixturedef.friction = 0.3f
+        fixturedef.restitution = 150.0f * 0.005f
+
+        body.CreateFixture(&fixturedef)
+        return body
+    }
+}

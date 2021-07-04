@@ -1,0 +1,200 @@
+
+import "Scene.adept"
+import "drawing.adept"
+
+define NEVER = -12345.0
+
+struct HurdleScene (
+    struct Scene,
+    started bool,
+    died_when 4 double,
+    speed double,
+    y 4 float,
+    vy 4 float,
+    hurdles 4 <Hurdle> List,
+    winner int,
+    won_when double
+) {
+    func enter {
+        gamedata.raining_bits.play()
+        this.started = false
+        repeat 4 {
+            this.died_when[idx] = NEVER
+            this.y[idx] = 0.0f
+            this.vy[idx] = 0.0f
+            this.hurdles[idx].clear()
+        }
+        this.speed = 192.0f
+        this.winner  = -1
+        this.won_when = NEVER
+    }
+
+    func exit {
+        gamedata.raining_bits.stop()
+    }
+
+    func step {
+        // Start minigame when 'start' is pressed
+        unless this.started, each Gamepad in static gamedata.gamepads {
+            if it.start(), this.started = true; break
+        }
+
+        unless this.started, return
+
+        if this.winner != -1 && glfwGetTime() - this.won_when > 5.0 {
+            gamedata.scores[this.winner] += 100
+            gamedata.setScene(new ScoreScene)
+            return
+        }
+        
+        repeat 4 using player_idx {
+            gamepad *Gamepad = gamedata.gamepads.find(GLFW_JOYSTICK_1 + player_idx)
+            unless gamepad && gamedata.characters[player_idx] != Character::NONE, continue
+
+            is_dead bool = this.died_when[player_idx] != NEVER
+
+            if !is_dead && gamepad.aHeld() && this.y[player_idx] == 0.0f, this.vy[player_idx] = -8.0f
+
+            if this.y[player_idx] != 0.0f, this.vy[player_idx] += 0.5f
+            this.y[player_idx] += this.vy[player_idx]
+
+            if this.y[player_idx] >= 0.0f {
+                this.y[player_idx] = 0.0f
+                this.vy[player_idx] = 0.0f
+            }
+
+            each Hurdle in this.hurdles[player_idx] {
+                if this.winner == player_idx {
+                    this.hurdles[player_idx].clear()
+                    break
+                }
+
+                it.x -= this.speed * 2.0f / 60.0f
+
+                player_center_x float = 48.0f
+                if this.winner == -1 && !is_dead && it.x > 0.0f && fabsf(it.x - player_center_x) < 8.0f {
+                    failed bool = false
+
+                    exhaustive switch it.kind {
+                    case HurdleKind::BIG
+                        failed = -1.0f * this.y[player_idx] < 48.0f
+                    case HurdleKind::SMALL
+                        failed = -1.0f * this.y[player_idx] < 32.0f
+                    case HurdleKind::FLYING
+                        failed = -1.0f * this.y[player_idx] > 32.0f
+                    }
+
+                    if failed {
+                        this.died_when[player_idx] = glfwGetTime()
+                        this.checkForWinner()
+                        break
+                    }
+                }
+
+                // Removed passed hurdles
+                if it.x < -64.0f, this.hurdles[player_idx].remove(idx--)
+            }
+
+            spawn_likelihood float = (this.speed / 128.0f)
+            spawn_likelihood *= spawn_likelihood
+
+            if this.winner == -1 && randomDouble() < 0.02 * spawn_likelihood {
+                const spawn_x float = captViewWidth() + 16.0f
+                const tolerance float = 256.0f - (128.0f - this.speed)
+                
+                last *Hurdle = this.hurdles[player_idx].length ? this.hurdles[player_idx] at (this.hurdles[player_idx].length - 1) : null as *Hurdle
+
+                unless last && fabsf(last.x - spawn_x) < tolerance {
+                    kind HurdleKind = randomDouble() < 0.2 ? HurdleKind::BIG : this.speed > 256.0f && randomDouble() < 0.1 ? HurdleKind::FLYING : HurdleKind::SMALL
+                    texture *CaptTexture = null
+
+                    exhaustive switch kind {
+                    case HurdleKind::BIG
+                        texture = &textures.big_hurdle
+                    case HurdleKind::SMALL
+                        texture = &textures.hurdle
+                    case HurdleKind::FLYING
+                        texture = &textures.butterfly
+                    }
+
+                    this.hurdles[player_idx].add(hurdle(kind, spawn_x, texture))
+                }
+            }
+        }
+
+        this.checkForWinner()
+        this.speed += 2.0f / 60.0f
+    }
+
+    func draw {
+        drawTileWallBackground((glfwGetTime() * this.speed) % 128.0)
+
+        unless this.started {
+            drawTextCentered("Press A to jump over the hurdles,", textures.bitmap_font_black, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f - 24.0f)
+            drawTextCentered("the last remaining wins!", textures.bitmap_font_black, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f + 24.0f)
+            return
+        }
+        
+        define size = 64.0f
+        define padding = 16.0f
+        y float = captViewHeight() / 2.0f - 1.5f * padding - 2.0f * size - size / 2.0f
+
+        repeat 4 using player_idx {
+            character Character = gamedata.characters[player_idx]
+            if character == Character::NONE, continue
+
+            behind float = this.died_when[player_idx] != NEVER ? 2.0f * this.speed * (glfwGetTime() - this.died_when[player_idx]) : 0.0f
+            captDrawTexture(glfwGetTime() % 0.5 < 0.25 ? getIdleTexture(character) : getWalkTexture(character), 16.0f - behind, y + this.y[player_idx], size, size)
+
+            each Hurdle in static this.hurdles[player_idx] {
+                exhaustive switch it.kind {
+                case HurdleKind::BIG
+                    captDrawTexture(*it.texture, it.x - 16.0f, y + 32.0f, 32.0f, 32.0f)
+                case HurdleKind::SMALL
+                    captDrawTexture(*it.texture, it.x - 16.0f, y + 48.0f, 32.0f, 16.0f)
+                case HurdleKind::FLYING
+                    captDrawTexture(*it.texture, it.x - 12.0f + 24.0f, y - 24.0f, -24.0f, 24.0f) 
+                }
+            }
+
+            y += size + padding
+        }
+
+        if this.winner != -1 {
+            drawTextCentered("P" + toString(this.winner + 1) + " " + getName(gamedata.characters[this.winner]) + " wins!", textures.bitmap_font_black, 16.0f)
+        }
+    }
+
+    func checkForWinner {
+        if this.winner != -1, return
+
+        alive int = 0
+        possible_winner int = -1
+
+        repeat 4 using player_idx {
+            gamepad *Gamepad = gamedata.gamepads.find(GLFW_JOYSTICK_1 + player_idx)
+            unless gamepad && gamedata.characters[player_idx] != Character::NONE, continue 
+
+            if this.died_when[player_idx] == NEVER {
+                alive++
+                possible_winner = player_idx
+            }
+        }
+
+        if alive == 1 {
+            this.winner = possible_winner
+            this.won_when = glfwGetTime()
+        }
+    }
+}
+
+enum HurdleKind (SMALL, BIG, FLYING)
+struct Hurdle (kind HurdleKind, x float, texture *CaptTexture)
+
+func hurdle(kind HurdleKind, x float, texture *CaptTexture) Hurdle {
+    h POD Hurdle = undef
+    h.kind = kind
+    h.x = x
+    h.texture = texture
+    return h
+}

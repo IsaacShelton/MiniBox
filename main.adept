@@ -1,0 +1,60 @@
+
+pragma compiler_version '2.5'
+pragma default_stdlib '2.5'
+
+#define SAILBOAT_GAME_TITLE            "MiniBox"
+#define SAILBOAT_FULLSCREEN            true
+#define SAILBOAT_USE_MOUSE_VIEW_COORDS true
+
+import basics
+import captain
+
+import "GameData.adept"
+import "Textures.adept"
+import "drawing.adept"
+
+func main {
+    captOnSetup(func &onSetup)
+    captOnStep(func &onStep)
+    captOnKey(func &onKey)
+    captOnClick(func &onClick, #get SAILBOAT_USE_MOUSE_VIEW_COORDS)
+    captOnDraw(func &onDraw)
+    captOnExit(func &onExit)
+    captStart(#get SAILBOAT_GAME_TITLE, #get SAILBOAT_FULLSCREEN)
+}
+
+func onSetup {
+    // Called before the first frame, should be used to load assets and prepare for application loop
+
+    randomSetSeed()
+    captHideCursor(true)
+    textures.load()
+    gamedata.load()
+}
+
+func onExit {
+    // Called when the application is preparing to close, should be used to free remaining assets
+
+    textures.unload()
+}
+
+func onStep {
+    gamedata.step()
+}
+
+func onKey(_key, _scancode, _action, _mods int) {
+    // Called once per keyboard event
+}
+
+func onClick(_mouse_x, _mouse_y float, _button int) {
+    // Called once per mouse click
+    // 'mouse_x' and 'mouse_y' coords are in view coordinates by default (as set by captOnClick)
+    // Button 1 == left
+    // Button 2 == right
+    // Button 3 == middle
+    // etc.
+}
+
+func onDraw {
+    gamedata.draw()
+}

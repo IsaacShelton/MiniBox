@@ -1,0 +1,74 @@
+
+import basics
+import captain
+
+import "GameData.adept"
+import "Textures.adept"
+
+define PPM = 32.0f
+
+func toScreenCoords(in x, y float, out s2x, s2y *float) {
+    *s2x = x * PPM + captViewWidth() / 2.0f
+    *s2y = captViewHeight() - y * PPM
+}
+
+func toB2Coords(in x, y float, out b2x, b2y *float) {
+    *b2x = (x - captViewWidth() / 2.0f) / PPM
+    *b2y = -1.0f * (y - captViewHeight()) / PPM
+}
+
+func drawSkyBackground {
+    define stride = 1600.0f
+
+    for(x float = 0.0f; x < captViewWidth(); x += stride){
+        captDrawTexture(textures.sky, x, 0.0f, stride, captViewHeight())
+    }
+}
+
+func drawTileWallBackground(x_offset float = 0.0f) {
+    captDrawTextureTiled(textures.tile, 0.0f - x_offset, 0.0f, 64.0f, 64.0f, captViewWidth() + x_offset, captViewHeight())
+}
+
+func drawFloorBackground {
+    captDrawTextureTiled(textures.floor, 0.0f, 0.0f, 64.0f, 64.0f, captViewWidth(), captViewHeight())
+}
+
+func drawCityGrassBackground {
+    captDrawTextureTiled(textures.citygrass, 0.0f, 0.0f, 64.0f, 64.0f, captViewWidth(), captViewHeight())
+}
+
+func drawGamepadInfo {
+    info String
+
+    info.append("Gamepad 1 - " + (glfwJoystickPresent(GLFW_JOYSTICK_1) ? "OK" : "NOT CONNECTED") + "\n")
+    info.append("Gamepad 2 - " + (glfwJoystickPresent(GLFW_JOYSTICK_2) ? "OK" : "NOT CONNECTED") + "\n")
+    info.append("Gamepad 3 - " + (glfwJoystickPresent(GLFW_JOYSTICK_3) ? "OK" : "NOT CONNECTED") + "\n")
+    info.append("Gamepad 4 - " + (glfwJoystickPresent(GLFW_JOYSTICK_4) ? "OK" : "NOT CONNECTED") + "\n")
+
+    drawTextWithFont(info, 10.0f, 10.0f, textures.bitmap_font_black)
+}
+
+func drawTextureForBox2D(texture POD CaptTexture, b2_x, b2_y, b2_w, b2_h, b2_angle float){
+    toScreenCoords(b2_x, b2_y, undef xpos float, undef ypos float)
+    angle float = b2_angle * -1.0f
+    w float = b2_w * PPM
+    h float = b2_h * PPM
+
+    transformation POD Matrix4f = undef
+    transformation.identity()
+    transformation.translate(xpos, ypos, 0.0f)
+    transformation.rotate(angle, 0.0f, 0.0f, 1.0f)
+    transformation.scale(w, h, 1.0f)
+    transformation.translate(-0.5f, -0.5f, 0.0f)
+    captDrawTextureUsingModelAndTransformation(_captain_model, texture, transformation)
+}
+
+func drawTextWithFont(text String, x, y float, font POD CaptTexture, scale float = 14.0f) {
+    text_drawable CaptText = captText(text, scale)
+    text_drawable.draw(x, y, font)
+    text_drawable.destroy()
+}
+
+func drawTextCentered(text String, custom_font POD CaptTexture = _captain_font, scale float = 14.0f, x = captViewWidth() / 2.0f, y float = captViewHeight() / 2.0f) {
+    drawTextWithFont(text, x - captTextCharacterWidthForScale(scale) * cast float text.length * 0.5f, y - 7.0f, custom_font, scale)
+}

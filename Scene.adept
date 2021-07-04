@@ -1,0 +1,52 @@
+
+struct Scene (
+    f_defer,
+    f_enter,
+    f_exit,
+    f_step,
+    f_draw ptr    
+) {
+    func __defer__ {
+        f func(ptr) void = this.f_exit as func(ptr) void
+        if f, f(this)
+
+        f = this.f_defer as func(ptr) void
+        if f, f(this)
+    }
+
+    func enter {
+        f func(ptr) void = this.f_enter as func(ptr) void
+        if f, f(this)
+    }
+
+    func exit {
+        f func(ptr) void = this.f_exit as func(ptr) void
+        if f, f(this)
+    }
+
+    func step {
+        f func(ptr) void = this.f_step as func(ptr) void
+        if f, f(this)
+    }
+
+    func draw {
+        f func(ptr) void = this.f_draw as func(ptr) void
+        if f, f(this)
+    }
+}
+
+func scene(impl *$SceneLike) *Scene {
+    impl.f_defer = func null &__defer__(*$SceneLike) as ptr
+    impl.f_enter = func null &enter(*$SceneLike) as ptr
+    impl.f_exit = func null &exit(*$SceneLike) as ptr
+    impl.f_step = func null &step(*$SceneLike) as ptr
+    impl.f_draw = func null &draw(*$SceneLike) as ptr
+    return impl as *Scene
+}
+
+func randomMinigame() *Scene {
+    switch random(1) {
+    case 0, return scene(new HurdleScene)
+    }
+    return scene(new ScoreScene)
+}
