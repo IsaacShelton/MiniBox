@@ -31,10 +31,10 @@ struct GameData (
         audioInit()
         defer this.setScene(new MainMenu)
 
-        this.facts = embed 'assets/facts.txt'.splitIntoViews("\n")
+        this.facts = embed 'static_assets/facts.txt'.splitIntoViews("\n")
         this.facts.length = NUM_FACTS
 
-        this.lies = embed 'assets/lies.txt'.splitIntoViews("\n")
+        this.lies = embed 'static_assets/lies.txt'.splitIntoViews("\n")
         this.lies.length = NUM_FACTS
 
         this.happy1.load(where() + "assets/happy_adventure.ogg", true, 1.5f)
