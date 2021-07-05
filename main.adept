@@ -7,7 +7,7 @@ pragma search_path "."
 #define SAILBOAT_FULLSCREEN            true
 #define SAILBOAT_USE_MOUSE_VIEW_COORDS true
 
-#define music true
+#define music false
 
 import basics
 import captain

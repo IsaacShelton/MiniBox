@@ -1,14 +1,38 @@
 
 import String
 
-enum Character (ANDY, ELLIE, ISAAC, ZACK, NONE)
+enum Character (
+    ANDY,
+    ELLIE,
+    ISAAC,
+    ZACK,
+    JIMMY,
+    THIEF,
+    CROOK,
+    SLURMP,
+    BEDWAR,
+    PICKLE,
+    ROBOT,
+    TALLIE,
+    JEFF,
+    NONE
+)
 
 func getName(character Character) String {
     exhaustive switch character {
-    case Character::ANDY,  return "Andy"
-    case Character::ELLIE, return "Ellie"
-    case Character::ISAAC, return "Isaac"
-    case Character::ZACK,  return "Zack"
+    case Character::ANDY,   return "Andy"
+    case Character::ELLIE,  return "Ellie"
+    case Character::ISAAC,  return "Isaac"
+    case Character::ZACK,   return "Zack"
+    case Character::JIMMY,  return "Jimmy"
+    case Character::THIEF,  return "Thief"
+    case Character::CROOK,  return "Crook"
+    case Character::SLURMP, return "Slurmp"
+    case Character::BEDWAR, return "Bedwar"
+    case Character::PICKLE, return "Pickle"
+    case Character::ROBOT,  return "Robot"
+    case Character::TALLIE, return "Tallie"
+    case Character::JEFF,   return "Jeff"
     case Character::NONE,  // do nothing
     }
     return "unknown"
@@ -20,10 +44,19 @@ func getIdleTexture(character Character) CaptTexture {
 
 func getIdleTexturePointer(character Character) *CaptTexture {
     exhaustive switch character {
-    case Character::ANDY,  return &textures.andy_idle
-    case Character::ELLIE, return &textures.ellie_idle
-    case Character::ISAAC, return &textures.isaac_idle
-    case Character::ZACK,  return &textures.zack_idle
+    case Character::ANDY,   return &textures.andy_idle
+    case Character::ELLIE,  return &textures.ellie_idle
+    case Character::ISAAC,  return &textures.isaac_idle
+    case Character::ZACK,   return &textures.zack_idle
+    case Character::JIMMY,  return &textures.jimmy_idle
+    case Character::THIEF,  return &textures.thief_idle
+    case Character::CROOK,  return &textures.crook_idle
+    case Character::SLURMP, return &textures.slurmp_idle
+    case Character::BEDWAR, return &textures.bedwar_idle
+    case Character::PICKLE, return &textures.pickle_idle
+    case Character::ROBOT,  return &textures.robot_idle
+    case Character::TALLIE, return &textures.tallie_idle
+    case Character::JEFF,   return &textures.jeff_idle
     case Character::NONE,  // do nothing
     }
     return &textures.black
@@ -35,10 +68,19 @@ func getWalkTexture(character Character) CaptTexture {
 
 func getWalkTexturePointer(character Character) *CaptTexture {
     exhaustive switch character {
-    case Character::ANDY,  return &textures.andy_walk
-    case Character::ELLIE, return &textures.ellie_walk
-    case Character::ISAAC, return &textures.isaac_walk
-    case Character::ZACK,  return &textures.zack_walk
+    case Character::ANDY,   return &textures.andy_walk
+    case Character::ELLIE,  return &textures.ellie_walk
+    case Character::ISAAC,  return &textures.isaac_walk
+    case Character::ZACK,   return &textures.zack_walk
+    case Character::JIMMY,  return &textures.jimmy_walk
+    case Character::THIEF,  return &textures.thief_walk
+    case Character::CROOK,  return &textures.crook_walk
+    case Character::SLURMP, return &textures.slurmp_walk
+    case Character::BEDWAR, return &textures.bedwar_walk
+    case Character::PICKLE, return &textures.pickle_walk
+    case Character::ROBOT,  return &textures.robot_walk
+    case Character::TALLIE, return &textures.tallie_walk
+    case Character::JEFF,   return &textures.jeff_walk
     case Character::NONE   // do nothing
     }
     return &textures.black

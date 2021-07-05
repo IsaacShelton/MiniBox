@@ -19,7 +19,7 @@ struct ScoreScene (
 
         repeat 4 {
             if gamedata.characters[idx] == Character::NONE, continue
-            this.text.append("P" + toString(idx + 1) + " " + pad(getName(gamedata.characters[idx]), 5) + " - " + gamedata.scores[idx] + " points\n")
+            this.text.append("P" + toString(idx + 1) + " " + pad(getName(gamedata.characters[idx]), 6) + " - " + gamedata.scores[idx] + " points\n")
 
             if gamedata.scores[idx] > largest_score {
                 largest_score_owner = idx
