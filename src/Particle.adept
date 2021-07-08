@@ -1,0 +1,16 @@
+
+import "Animation.adept"
+
+struct Particle (b2_x, b2_y, screen_w, screen_h float, animation Animation)
+
+func particle(b2_x, b2_y, screen_w, screen_h float, animation Animation) Particle {
+    p POD Particle
+    p.b2_x = b2_x
+    p.b2_y = b2_y
+    p.screen_w = screen_w
+    p.screen_h = screen_h
+
+    if animation.isDependent(), p.animation = POD animation
+    else                        p.animation = animation
+    return p
+}

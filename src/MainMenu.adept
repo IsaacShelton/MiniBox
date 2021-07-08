@@ -1,7 +1,7 @@
 
 import "Scene.adept"
 import "drawing.adept"
-import "box2d/box2d.adept"
+import "../box2d/box2d.adept"
 
 define FALLING_BODY_SIZE = 128.0f
 

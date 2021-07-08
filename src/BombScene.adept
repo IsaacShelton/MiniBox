@@ -1,0 +1,452 @@
+
+import Grid
+import List
+import captain
+import "Scene.adept"
+import "drawing.adept"
+import "Animation.adept"
+import "Particle.adept"
+
+struct BombScene (
+    struct Scene,
+    started bool,
+    world *b2World,
+    brick_box b2PolygonShape,
+    bombs <Bomb> List,
+    bricks <Brick> Grid,
+    camera_y float,
+    players 4 *b2Body,
+    won_when 4 double,
+    vspeed float,
+    ground_body *b2Body,
+    left_body *b2Body,
+    right_body *b2Body,
+    particles <Particle> List,
+    well_done_players 4 SoundPlayer,
+    speakers <SoundPlayer> List,
+    game_over_when double
+) {
+    func enter {
+        gamedata.dark_ambience.play()
+
+        this.vspeed = 12.0f / 60.0f
+        this.bricks = grid(16, 16, brick(null))
+        this.camera_y = 300.0f
+        this.game_over_when = NEVER
+
+        this.world = new b2World
+        gravity POD b2Vec2 = POD b2Vec2(0.0f, -9.8f)
+        b2World(this.world, &gravity)
+
+        // Create ground body
+        if true {
+            ground_bodydef b2BodyDef = b2BodyDef()
+            ground_bodydef.type = b2_kinematicBody
+            
+            b2_w float = 0.5f * captViewWidth() / PPM
+            b2_h float = 0.5f * 256.0f / PPM
+            toB2Coords(0.0f, 0.0f - this.camera_y - 256.0f - 32.0f, undef ground_b2_x float, undef ground_b2_y float)
+            ground_bodydef.position.Set(ground_b2_x + b2_w, ground_b2_y - b2_h)
+            ground_body *b2Body = this.world.CreateBody(&ground_bodydef)
+
+            ground_box b2PolygonShape = b2PolygonShape()
+            ground_box.SetAsBox(b2_w, b2_h)
+            ground_body.CreateFixture(&ground_box as *b2Shape, 0.0f)
+            this.ground_body = ground_body
+        }
+
+        // Create left body
+        if true {
+            bodydef b2BodyDef = b2BodyDef()
+            bodydef.type = b2_kinematicBody
+            
+            b2_w float = 0.5f * 256.0f / PPM
+            b2_h float = 0.5f * 10.0f * captViewHeight() / PPM
+            toB2Coords(0.0f - 128.0f, captViewHeight() / 2.0f, undef b2_x float, undef b2_y float)
+            bodydef.position.Set(b2_x, b2_y)
+            body *b2Body = this.world.CreateBody(&bodydef)
+
+            box b2PolygonShape = b2PolygonShape()
+            box.SetAsBox(b2_w, b2_h)
+            body.CreateFixture(&box as *b2Shape, 0.0f)
+            this.left_body = body
+        }
+
+        // Create right body
+        if true {
+            bodydef b2BodyDef = b2BodyDef()
+            bodydef.type = b2_kinematicBody
+            
+            b2_w float = 0.5f * 256.0f / PPM
+            b2_h float = 0.5f * 10.0f * captViewHeight() / PPM
+            toB2Coords(captViewWidth() + 128.0f, captViewHeight() / 2.0f, undef b2_x float, undef b2_y float)
+            bodydef.position.Set(b2_x, b2_y)
+            body *b2Body = this.world.CreateBody(&bodydef)
+
+            box b2PolygonShape = b2PolygonShape()
+            box.SetAsBox(b2_w, b2_h)
+            body.CreateFixture(&box as *b2Shape, 0.0f)
+            this.right_body = body
+        }
+
+        // Create box shape
+        if true {
+            this.brick_box = b2PolygonShape()
+            this.brick_box.SetAsBox(32.0f / PPM, 32.0f / PPM)
+        }
+
+        // Create bricks
+        repeat 16 using x, repeat 16 using y {
+            if randomDouble() < 0.1, continue
+
+            toB2Coords(x as float * 64.0f + 32.0f, y as float * 64.0f + 32.0f, undef b2_x float, undef b2_y float)
+            this.bricks[gridCoord(x, y)].body = this.newBody(b2_x, b2_y)
+        }
+
+        // Set win time for each player to never
+        repeat 4 {
+            this.won_when[idx] = NEVER
+            this.well_done_players[idx].create()
+        }
+    }
+
+    func exit {
+        gamedata.dark_ambience.stop()
+
+        if this.world {
+            this.world.__defer__()
+            delete this.world
+        }
+
+        repeat 4 {
+            this.well_done_players[idx].destroy()
+        }
+
+        each SoundPlayer in static this.speakers {
+            it.stop()
+            it.destroy()
+        }
+    }
+
+    func step {
+        unless this.world, return
+
+        define time_step = 1.0f / 60.0f
+        define velocity_iterations = 6
+        define position_iterations = 2
+
+        this.world.Step(time_step, velocity_iterations, position_iterations)
+
+        unless this.started, each Gamepad in static gamedata.gamepads {
+            if it.start() {
+                this.started = true
+                this.createPlayers()
+                this.started = true
+            }
+        }
+
+        unless this.started, return
+
+        each Gamepad in static gamedata.gamepads {
+            index int = it.id - GLFW_JOYSTICK_1
+            body *b2Body = this.players[index]
+
+            if body == null || this.won_when[index] != NEVER, continue
+
+            if it.rightHeld(){
+                impulse POD b2Vec2 = POD b2Vec2(0.5f, 0.0f)
+                body.ApplyLinearImpulseToCenter(&impulse, true)
+            }
+
+            if it.leftHeld(){
+                impulse POD b2Vec2 = POD b2Vec2(-0.5f, 0.0f)
+                body.ApplyLinearImpulseToCenter(&impulse, true)
+            }
+
+            if it.up() || it.a() {
+                impulse POD b2Vec2 = POD b2Vec2(0.0f, 15.0f)
+                body.ApplyLinearImpulseToCenter(&impulse, true)
+
+                this.particles.add(particle(body.GetPosition().x, body.GetPosition().y - 24.0f / PPM, 32.0f, 32.0f, gamedata.smoke_animation.newChildInstance()))
+            }
+        }
+
+        each Particle in this.particles {
+            if it.animation.atEnd(), this.particles.remove(idx--); continue
+            it.animation.update()
+        }
+
+        each Bomb in this.bombs {
+            // Tick animation
+            it.animation.update()
+
+            // Tick lifetime
+            unless --it.lifetime == 0, continue
+
+            const x float = it.body.GetPosition().x
+            const y float = it.body.GetPosition().y
+
+            // Add explosion
+            this.particles.add(particle(x, y, 192.0f, 192.0f, gamedata.splode_animation.newChildInstance()))
+
+            // Play sound
+            this.playSoundWithSpeaker(gamedata.explosion)
+
+            // Destory nearby bricks
+            each brick Brick in this.bricks {
+                unless brick.body, continue
+
+                brick_pos *b2Vec2 = brick.body.GetPosition()
+                if distance(brick_pos.x, brick_pos.y, x, y) < 192.0f / PPM {
+                    this.world.DestroyBody(brick.body)
+                    brick.body = null
+                }
+            }
+
+            // Kill nearby alive players
+            repeat 4 {
+                if this.players[idx] && this.won_when[idx] == NEVER && distance(this.players[idx].GetPosition().x, this.players[idx].GetPosition().y, x, y) < 96.0f / PPM {
+                    this.killPlayer(idx)
+                }
+            }
+            
+            this.world.DestroyBody(it.body)
+            this.bombs.remove(idx--)
+        }
+
+        if randomDouble() < 0.01 {
+            this.newBomb()
+        }
+
+        each *b2Body in this.players {
+            if it == null || this.won_when[idx] != NEVER, continue
+
+            toScreenCoords(it.GetPosition().x, it.GetPosition().y - this.camera_y / PPM, undef screen_x float, undef screen_y float)
+
+            // Kill out of bounds players
+            if screen_y < -16.0f || screen_x < 0.0f || screen_x > captViewWidth() {
+                this.killPlayer(idx)
+                continue
+            }
+            
+            // Players who get down far enough win
+            if screen_y - this.camera_y > 16.0f * 64.0f {
+                this.won_when[idx] = glfwGetTime()
+                this.well_done_players[idx].play(gamedata.well_done)
+                gamedata.scores[idx] += 100
+            }
+        }
+
+        // Remove old speakers
+        each SoundPlayer in this.speakers {
+            unless it.isPlaying() {
+                it.destroy()
+                this.speakers.remove(idx--)
+            }
+        }
+
+        if this.gameOver() && this.game_over_when == NEVER {
+            this.game_over_when = glfwGetTime()
+        }
+
+        if this.game_over_when != NEVER && glfwGetTime() - this.game_over_when > 5.0 {
+            gamedata.setScene(new ScoreScene)
+            return
+        }
+
+        // Move ground body
+        if true {
+            this.moveStaticBody(this.ground_body, -1.0f * this.vspeed / PPM)
+            this.moveStaticBody(this.left_body, -1.0f * this.vspeed / PPM)
+            this.moveStaticBody(this.right_body, -1.0f * this.vspeed / PPM)
+        }
+        this.camera_y -= this.vspeed        
+    }
+
+    func killPlayer(player_idx usize) {
+        this.playSoundWithSpeaker(gamedata.splat)
+
+        player *b2Body = this.players[player_idx]
+
+        position *b2Vec2 = player.GetPosition()
+        this.particles.add(particle(position.x, position.y, 128.0f, 128.0f, gamedata.bloodsplat_animation.newChildInstance()))
+
+        this.world.DestroyBody(this.players[player_idx])
+        this.players[player_idx] = null
+    }
+
+    func moveStaticBody(inout body *b2Body, y_amount float) {
+        new_position POD b2Vec2 = POD *body.GetPosition()
+        new_position.y += y_amount
+        body.SetTransform(&new_position, body.GetAngle())
+    }
+
+    func createPlayers {
+        // Create players
+        character_shape b2PolygonShape = b2PolygonShape()
+        character_shape.SetAsBox(20.0f / PPM, 32.0f / PPM)
+
+        repeat 4 {
+            if gamedata.characters[idx] == Character::NONE, continue
+
+            x float = captViewWidth() / 4.0f + idx as float * captViewWidth() / 2.0f / 3.0f
+
+            toB2Coords(x, -300.0f, undef b2_x float, undef b2_y float)
+
+            bodydef b2BodyDef = b2BodyDef()
+            bodydef.type = b2_dynamicBody
+            bodydef.position.Set(b2_x, b2_y)
+
+            body *b2Body = this.world.CreateBody(&bodydef)
+
+            fixturedef b2FixtureDef = b2FixtureDef()
+            fixturedef.shape = &character_shape as *b2Shape
+            fixturedef.density = 1.0f
+            fixturedef.friction = 0.9f
+            fixturedef.restitution = 50.0f * 0.005f
+
+            body.CreateFixture(&fixturedef)
+            this.players[idx] = body
+        }
+    }
+
+    func draw {
+        captDrawTextureTiled(textures.brickwall, 0.0f, -64.0f + (this.camera_y % 64.0f), 64.0f, 64.0f, captViewWidth(), captViewHeight() + 128.0f)
+
+        each Brick in static this.bricks {
+            unless it.body, continue
+
+            position *b2Vec2 = it.body.GetPosition()
+            drawTextureForBox2D(textures.brick, position.x, position.y - this.camera_y / PPM, 64.0f / PPM, 64.0f / PPM, it.body.GetAngle())
+        }
+
+        repeat 4 {
+            body *b2Body = this.players[idx]
+            unless body, continue
+
+            position *b2Vec2 = body.GetPosition()
+
+            character Character = gamedata.characters[idx]
+            texture CaptTexture = glfwGetTime() % 0.5 < 0.25 ? getIdleTexture(character) : getWalkTexture(character)
+
+            if this.won_when[idx] != NEVER {
+                elapsed double = glfwGetTime() - this.won_when[idx]
+                captDrawOpacity(clamp(1.0f - 8.0f * elapsed, 0.0f, 1.0f))
+            }
+
+            drawTextureForBox2D(texture, position.x, position.y - this.camera_y / PPM, 64.0f / PPM, 64.0f / PPM, body.GetAngle())
+            captDrawOpacity(1.0f)
+        }
+
+        unless this.started {
+            captDrawTexture(textures.black, captViewWidth() / 4.0f, captViewHeight() / 4.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f)
+            drawTextCentered("Dodge the bombs,", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f - 24.0f)
+            drawTextCentered("get to the exit to win!", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f + 24.0f)
+            return
+        }
+
+        each Bomb in static this.bombs {
+            position *b2Vec2 = it.body.GetPosition()
+            drawTextureForBox2D(it.animation.now(), position.x, position.y - this.camera_y / PPM, 32.0f / PPM, 32.0f / PPM, it.body.GetAngle())
+        }
+
+        each Particle in static this.particles {
+            drawTextureForBox2D(it.animation.now(), it.b2_x, it.b2_y - this.camera_y / PPM, it.screen_w / PPM, it.screen_h / PPM, 0.0f)
+        }
+
+        if this.game_over_when != NEVER {
+            captDrawTexture(textures.black, captViewWidth() / 4.0f, captViewHeight() / 2.0f - 64.0f, captViewWidth() / 2.0f, 128.0f)
+            drawTextCentered("Game over", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f)
+            return
+        }
+    }
+
+    func gameOver() bool {
+        repeat 4, if this.players[idx] && this.won_when[idx] == NEVER, return false
+        return true
+    }
+
+    func newBody(b2_x, b2_y float) *b2Body {
+        bodydef b2BodyDef = b2BodyDef()
+        bodydef.type = b2_staticBody
+        bodydef.position.Set(b2_x, b2_y)
+
+        body *b2Body = this.world.CreateBody(&bodydef)
+
+        fixturedef b2FixtureDef = b2FixtureDef()
+        fixturedef.shape = &this.brick_box as *b2Shape
+        fixturedef.density = 1.0f
+        fixturedef.friction = 0.4f
+        fixturedef.restitution = 100.0f * 0.005f
+
+        body.CreateFixture(&fixturedef)
+        return body
+    }
+
+    func newBombBody(b2_x, b2_y float) *b2Body {
+        bodydef b2BodyDef = b2BodyDef()
+        bodydef.type = b2_dynamicBody
+        bodydef.position.Set(b2_x, b2_y)
+
+        body *b2Body = this.world.CreateBody(&bodydef)
+
+        circle b2CircleShape = b2CircleShape()
+        circle.m_radius = 12.0f / PPM
+
+        fixturedef b2FixtureDef = b2FixtureDef()
+        fixturedef.shape = &circle as *b2Shape
+        fixturedef.density = 1.0f
+        fixturedef.friction = 0.3f
+        fixturedef.restitution = 150.0f * 0.005f
+
+        body.CreateFixture(&fixturedef)
+        return body
+    }
+
+    func newBomb {
+        x float = randomDouble() * (captViewWidth() - 64.0f) + 32.0f
+        y float = -1.0f * this.camera_y
+
+        toB2Coords(x, y, undef b2_x float, undef b2_y float)
+
+        bomb POD Bomb
+        bomb.body = this.newBombBody(b2_x, b2_y)
+        bomb.animation = POD gamedata.bomb_animation.newChildInstance()
+        bomb.lifetime = randomDouble() < 0.2 ? 30 : 240
+
+        define max_hspeed = 128.0f / PPM
+        define max_vspeed = 64.0f / PPM
+        velocity POD b2Vec2 = POD b2Vec2( (randomDouble() * 2.0f - 1.0f) * max_hspeed , randomDouble() * max_vspeed )
+        bomb.body.SetLinearVelocity(&velocity)
+
+        this.bombs.add(bomb)
+    }
+
+    func playSoundWithSpeaker(sound Sound){
+        // Keep number of spekers down
+        if this.speakers.length > 16 {
+            this.speakers.getPointer(0).stop()
+            this.speakers.getPointer(0).destroy()
+            this.speakers.remove(0)
+        }
+
+        s SoundPlayer
+        s.create()
+        s.play(sound)
+        this.speakers.add(s)
+    }
+}
+
+struct Bomb (
+    body *b2Body,
+    animation Animation,
+    lifetime usize
+)
+
+struct Brick (body *b2Body)
+
+func brick(body *b2Body) Brick {
+    b POD Brick = undef
+    b.body = body
+    return b
+}

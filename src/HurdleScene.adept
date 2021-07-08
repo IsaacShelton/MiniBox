@@ -130,7 +130,7 @@ struct HurdleScene (
         drawTileWallBackground((glfwGetTime() * this.speed) % 128.0)
 
         unless this.started {
-            drawTextCentered("Press A to jump over the hurdles,", textures.bitmap_font_black, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f - 24.0f)
+            drawTextCentered("Use A to jump over the hurdles,", textures.bitmap_font_black, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f - 24.0f)
             drawTextCentered("the last remaining wins!", textures.bitmap_font_black, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f + 24.0f)
             return
         }

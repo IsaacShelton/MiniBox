@@ -45,8 +45,11 @@ func scene(impl *$SceneLike) *Scene {
 }
 
 func randomMinigame() *Scene {
-    switch random(1) {
+    return scene(new BombScene)
+    
+    switch random(2) {
     case 0, return scene(new HurdleScene)
+    case 1, return scene(new BombScene)
     }
     return scene(new ScoreScene)
 }

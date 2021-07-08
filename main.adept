@@ -1,13 +1,12 @@
 
 pragma compiler_version '2.5'
 pragma default_stdlib '2.5'
-pragma search_path "."
 
 #define SAILBOAT_GAME_TITLE            "MiniBox"
 #define SAILBOAT_FULLSCREEN            true
 #define SAILBOAT_USE_MOUSE_VIEW_COORDS true
 
-#define music false
+#define music true
 
 import basics
 import captain

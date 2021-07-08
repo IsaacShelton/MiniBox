@@ -6,6 +6,7 @@ enum Character (
     ELLIE,
     ISAAC,
     ZACK,
+    NONE,
     JIMMY,
     THIEF,
     CROOK,
@@ -14,8 +15,7 @@ enum Character (
     PICKLE,
     ROBOT,
     TALLIE,
-    JEFF,
-    NONE
+    JEFF
 )
 
 func getName(character Character) String {

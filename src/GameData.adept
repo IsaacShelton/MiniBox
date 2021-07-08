@@ -4,11 +4,13 @@
 import List
 import audio
 import "Character.adept"
+import "Animation.adept"
 import "MainMenu.adept"
 import "SelectScene.adept"
 import "ScoreScene.adept"
 import "WinnerScene.adept"
 import "HurdleScene.adept"
+import "BombScene.adept"
 
 define NUM_FACTS = 120
 
@@ -21,8 +23,17 @@ struct GameData (
     scores 4 int,
     happy1,
     raining_bits,
-    cant_stop_winning PlayableSound,
-    winner int
+    cant_stop_winning,
+    dark_ambience PlayableSound,
+    well_done,
+    explosion,
+    splat Sound,
+    winner int,
+
+    bomb_animation
+    splode_animation
+    smoke_animation,
+    bloodsplat_animation Animation
 ) {
     func __defer__ {
         if this.scene, this.scene.__defer__()
@@ -39,13 +50,57 @@ struct GameData (
         this.lies = embed 'static_assets/lies.txt'.splitIntoViews("\n")
         this.lies.length = NUM_FACTS
         
+        // NOTE: We will neglect destroy()ing our sounds
+
         #if music
         this.happy1.load(where() + "assets/happy_adventure.ogg", true, 1.5f)
         this.raining_bits.load(where() + "assets/raining_bits.ogg", true, 0.8f)
         this.cant_stop_winning.load(where() + "assets/cant_stop_winning.ogg", true, 0.8f)
+        this.dark_ambience.load(where() + "assets/dark_ambience.ogg", true, 1.0f)
         #end
 
+        this.well_done.load(where() + "assets/well_done.ogg", false, 1.5f)
+        this.explosion.load(where() + "assets/explosion.wav", false, 1.5f)
+        this.splat.load(where() + "assets/splat.wav", false, 1.5f)
+
         this.winner = -1
+
+        this.bomb_animation = animation({
+            &textures.bomb1,
+            &textures.bomb2,
+            &textures.bomb3
+        } as <*CaptTexture> List, 20)
+
+        this.splode_animation = animation({
+            &textures.splode1,
+            &textures.splode2,
+            &textures.splode3,
+            &textures.splode4,
+            &textures.splode5,
+            &textures.splode6,
+            &textures.splode7,
+            &textures.splode8,
+            &textures.splode9,
+            &textures.splode10,
+            &textures.splode11,
+            &textures.splode12,
+            &textures.splode13,
+            &textures.splode14,
+            &textures.splode15,
+            &textures.splode16,
+            &textures.splode17
+        } as <*CaptTexture> List, 1)
+
+        this.smoke_animation = animation({
+            &textures.smoke1,
+            &textures.smoke2,
+            &textures.smoke3,
+            &textures.smoke4
+        } as <*CaptTexture> List, 2)
+
+        this.bloodsplat_animation = animation({
+            &textures.bloodsplat
+        } as <*CaptTexture> List, 2400)
     }
     
     func reset {
@@ -140,7 +195,7 @@ struct Gamepad(id int, x, y int, just_x, just_y bool, buttons, just 10 ubyte) {
     func down()   bool = this.y ==  1 && this.just_y
 
     func rightHeld() bool = this.x == 1
-    func leftHelf()  bool = this.x == -1
+    func leftHeld()  bool = this.x == -1
     func upHeld()    bool = this.y == -1
     func downHeld()  bool = this.y == 1
 }

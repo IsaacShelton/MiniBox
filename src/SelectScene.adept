@@ -2,7 +2,7 @@
 import math
 import "Scene.adept"
 import "drawing.adept"
-import "box2d/box2d.adept"
+import "../box2d/box2d.adept"
 
 define FALLING_BODY_SIZE = 128.0f
 
@@ -142,14 +142,11 @@ struct SelectScene (
 
                 captDrawTexture(texture, x + 16.0f, y + 64.0f, 128.0f, 128.0f)
             } else {
-                captDrawText("P" + toString(idx + 1), x + 80.0f - captTextCharacterWidthForScale(), y + 16.0f)
                 captDrawText("press a", x + 80.0f - captTextCharacterWidthForScale() * 3.5f, y + 120.0f)
             }
 
             x += 160.0f + 32.0f
         }
-        
-        //captDrawTextureTiled(textures.tile, 0.0f, captViewHeight() / 2.0f, 128.0f, 128.0f, captViewWidth(), captViewHeight() * 0.5f)
     }
 
     func newBody(b2_x, b2_y float, size_multiplier float) *b2Body {
