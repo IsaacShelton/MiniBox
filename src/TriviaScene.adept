@@ -1,0 +1,254 @@
+
+import Vector2f
+import Optional
+import "drawing.adept"
+import "scene.adept"
+
+struct TriviaScene (
+    struct Scene,
+    started bool,
+    option1, option2 String,
+    truth_is_first_option bool,
+    shuffle_start double,
+    question_start double,
+    feedback_start double,
+    positions 4 <Vector2f> Optional,
+    movement 4 Vector2f,
+    correct 4 bool,
+    remaining int
+) {
+    func enter {
+        gamedata.orbital_colossus.play()
+
+        this.shuffle_start = NEVER
+        this.question_start = NEVER
+        this.feedback_start = NEVER
+        this.remaining = 5
+
+        repeat 4 {
+            if gamedata.characters[idx] == Character::NONE {
+                this.positions[idx] = none() ~> <Vector2f> Optional
+                continue
+            }
+
+            angle float = -1.0f * idx as float * 2.0f * PI / 4.0f - PI / 4.0f
+            distance float = 64.0f
+            this.positions[idx] = some(vector2f(captViewWidth() / 2.0f + distance * cosf(angle), captViewHeight() / 2.0f + distance * sinf(angle)))
+        }
+    }
+
+    func exit {
+        gamedata.orbital_colossus.stop()
+    }
+
+    func step {
+        unless this.started, each Gamepad in static gamedata.gamepads {
+            if it.start() {
+                this.started = true
+                this.shuffle()
+            }
+        }
+
+        unless this.started, return
+
+        if this.shuffle_start != NEVER {
+            const since_shuffle_start double = glfwGetTime() - this.shuffle_start
+
+            if since_shuffle_start > 2.0 {
+                this.shuffle_start = NEVER
+                this.question_start = glfwGetTime()
+            } elif !gamedata.shuffle.isPlaying() && since_shuffle_start > 1.0 && since_shuffle_start < 1.2 {
+                gamedata.shuffle.play()
+            }
+        }
+
+        if this.question_start != NEVER {
+            const since_question_start double = glfwGetTime() - this.question_start
+
+            if !gamedata.tick.isPlaying() && since_question_start > 11.0 && since_question_start < 12.0 {
+                gamedata.tick.play()
+            } elif since_question_start >= 20.0 {
+                any_incorrect bool = false
+                this.question_start = NEVER
+                this.feedback_start = glfwGetTime()
+
+                each <Vector2f> Optional in this.positions {
+                    unless it.has, continue
+
+                    // See if they got it right
+                    on_left bool = it.getPointer().x <= captViewWidth() / 2.0f
+                    this.correct[idx] = !(this.truth_is_first_option ^ on_left)
+
+                    // Award points
+                    gamedata.scores[idx] += (this.correct[idx] ? 25 : -25)
+
+                    // Keep track of if anyone got it wrong
+                    unless this.correct[idx], any_incorrect = true
+                }
+
+                if any_incorrect {
+                    gamedata.wrong.play()
+                } else {
+                    gamedata.right.play()
+                }
+            }
+        }
+
+        if this.feedback_start != NEVER {
+            const since_feedback_start double = glfwGetTime() - this.feedback_start
+
+            if since_feedback_start >= 2.0 {
+                this.feedback_start = NEVER
+                this.shuffle()
+            }
+        }
+
+        each Gamepad in static gamedata.gamepads {
+            index int = it.id - GLFW_JOYSTICK_1
+
+            unless this.positions[index].has, continue
+
+            position *Vector2f = this.positions[idx].getPointer()
+            const speed float = 4.0f
+
+            movement Vector2f = vector2f(it.x as float, it.y as float * 0.5f)
+            movement.normalize()
+
+            this.movement[idx] = (movement + this.movement[idx] * 4.0f) * 0.2f
+            position.add(this.movement[idx] * speed)
+
+            position.clamp(0.0f, captViewWidth(), 0.0f, captViewHeight())
+        }
+    }
+
+    func draw {
+        drawCityGrassBackground()
+
+        unless this.started {
+            captDrawTexture(textures.black, 64.0f, captViewHeight() / 2.0f - 80.0f, captViewWidth() - 128.0f, 160.0f)
+            drawTextCentered("choose the right answer to win 25 points", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f - 24.0f)
+            drawTextCentered("choose the wrong answer to lose 25 points", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f + 24.0f)
+            return
+        }
+
+        sorted_positions <IndexPosition> List
+        each <Vector2f> Optional in static this.positions, if it.has, sorted_positions.add(indexPosition(idx, it.value))
+        sorted_positions.sortByY()
+
+        each IndexPosition in static sorted_positions {
+            position *Vector2f = &it.position
+            player_index usize = it.index
+
+            if this.feedback_start == NEVER {
+                captDrawTexture(getIdleTexture(gamedata.characters[player_index]), position.x - 32.0f, position.y - 32.0f, 64.0f, 64.0f)
+            } else {
+                drawTextWithFont(this.correct[player_index] ? "+25" : "-25", position.x - 32.0f, position.y, textures.bitmap_font_black, 24.0f)
+            }
+        }
+
+        if this.shuffle_start == NEVER {
+            captDrawTexture(textures.black, 64.0f, 16.0f, captViewWidth() - 128.0f, 64.0f)
+            drawTextCentered("which of the following is true?", _captain_font, 16.0f, captViewWidth() / 2.0f, 48.0f)
+
+            drawTextWithFont(this.option1, 64.0f, 128.0f, textures.bitmap_font_black, 16.0f)
+            drawTextWithFont(this.option2, captViewWidth() - 24.0f * captTextCharacterWidthForScale(16.0f) - 64.0f, 128.0f, textures.bitmap_font_black, 16.0f)
+        } else {
+            captDrawTexture(textures.black, 64.0f, 16.0f, captViewWidth() - 128.0f, 64.0f)
+            drawTextCentered("which of the following is true? ".marquee(cast int (1 + 32.0f * (glfwGetTime() - this.shuffle_start))), _captain_font, 16.0f, captViewWidth() / 2.0f, 48.0f)
+        }
+    }
+
+    func shuffle {
+        if this.remaining-- == 0 {
+            gamedata.setScene(new ScoreScene)
+            return
+        }
+
+        memset(this.correct at 0, 0, sizeof(this.correct))
+        this.shuffle_start = glfwGetTime()
+        gamedata.shuffle.play()
+        this.newOptions()
+    }
+
+    func newOptions {
+        choice usize = random(NUM_FACTS)
+
+        fact String = gamedata.facts.get(choice).multiline(24)
+        lie String = gamedata.lies.get(choice).multiline(24)
+
+        this.truth_is_first_option = randomDouble() < 0.5
+
+        if this.truth_is_first_option {
+            this.option1 = fact.commit()
+            this.option2 = lie.commit()
+        } else {
+            this.option1 = lie.commit()
+            this.option2 = fact.commit()
+        }
+    }
+}
+
+func multiline(this *String, max_line_length usize) String {    
+    // Basic method to add newlines into a string to spread it across multiple lines
+    // Does not handle Strings without spaces very well
+
+    result String = this.clone()
+    since_last_newline long = 0
+    
+    each ubyte in static result {
+        if ++since_last_newline > max_line_length {
+            range_since String = result.range(idx - (since_last_newline - 1), idx + 1)
+            last_space long = range_since.last(' 'ub)
+            
+            // Overwrite best space character if available
+            if last_space != -1 {
+                result.array[idx as long - (since_last_newline - 1) + last_space] = '\n'ub
+                since_last_newline = (range_since.length as long - 1) - last_space
+            } else {
+                // Overwrite current character with newline if going over
+                result.array[idx] = '\n'ub
+                since_last_newline = 0
+            }
+        }
+    }
+    
+    return result.commit()
+}
+
+func marquee(this *String, amount long) String {
+    // Basic method for marquee'ing a string
+
+    result String = this.clone()
+
+    unless this.length == 0, repeat static amount {
+        last_character ubyte = result[result.length - 1]
+        memmove(result at 1, result at 0, result.length - 1)
+        result[0] = last_character
+    }
+
+    return result.commit()
+}
+
+func clamp(this *Vector2f, min_x, max_x, min_y, max_y float) {
+    this.x = clamp(this.x, min_x, max_x)
+    this.y = clamp(this.y, min_y, max_y)
+}
+
+func sortByY(this *<IndexPosition> List) {
+    qsort(this.items, this.length, sizeof IndexPosition, func &compareIndexPositionSortByY)
+}
+
+struct IndexPosition (index int, position Vector2f)
+
+func indexPosition(index int, position Vector2f) IndexPosition {
+    ip POD IndexPosition = undef
+    ip.index = index
+    ip.position = position
+    return ip
+}
+
+func compareIndexPositionSortByY(a_raw, b_raw ptr) int {
+    define a = a_raw as *IndexPosition.position
+    define b = b_raw as *IndexPosition.position
+    return a.y < b.y ? -1 : a.y == b.y ? 0 : 1
+}

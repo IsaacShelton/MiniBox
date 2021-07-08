@@ -139,7 +139,6 @@ struct BombScene (
 
         unless this.started, each Gamepad in static gamedata.gamepads {
             if it.start() {
-                this.started = true
                 this.createPlayers()
                 this.started = true
             }

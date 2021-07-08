@@ -27,7 +27,7 @@ struct ScoreScene (
             }
         }
 
-        this.winner = largest_score >= 100 ? largest_score_owner : -1
+        this.winner = largest_score >= 500 ? largest_score_owner : -1
         this.text.append("\npress start to continue...")
     }
 

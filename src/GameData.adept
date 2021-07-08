@@ -11,6 +11,7 @@ import "ScoreScene.adept"
 import "WinnerScene.adept"
 import "HurdleScene.adept"
 import "BombScene.adept"
+import "TriviaScene.adept"
 
 define NUM_FACTS = 120
 
@@ -24,10 +25,15 @@ struct GameData (
     happy1,
     raining_bits,
     cant_stop_winning,
-    dark_ambience PlayableSound,
+    dark_ambience
+    orbital_colossus PlayableSound,
     well_done,
     explosion,
     splat Sound,
+    shuffle,
+    right,
+    wrong,
+    tick PlayableSound,
     winner int,
 
     bomb_animation
@@ -57,11 +63,16 @@ struct GameData (
         this.raining_bits.load(where() + "assets/raining_bits.ogg", true, 0.8f)
         this.cant_stop_winning.load(where() + "assets/cant_stop_winning.ogg", true, 0.8f)
         this.dark_ambience.load(where() + "assets/dark_ambience.ogg", true, 1.0f)
+        this.orbital_colossus.load(where() + "assets/orbital_colossus.ogg", true, 0.6f)
         #end
 
         this.well_done.load(where() + "assets/well_done.ogg", false, 1.5f)
         this.explosion.load(where() + "assets/explosion.wav", false, 1.5f)
         this.splat.load(where() + "assets/splat.wav", false, 1.5f)
+        this.shuffle.load(where() + "assets/shuffle.wav", false, 1.5f)
+        this.right.load(where() + "assets/right.wav", false, 1.5f)
+        this.wrong.load(where() + "assets/wrong.wav", false, 1.5f)
+        this.tick.load(where() + "assets/tick.ogg", false, 1.5f)
 
         this.winner = -1
 
