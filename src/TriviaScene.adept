@@ -15,7 +15,8 @@ struct TriviaScene (
     positions 4 <Vector2f> Optional,
     movement 4 Vector2f,
     correct 4 bool,
-    remaining int
+    remaining int,
+    disco bool
 ) {
     func enter {
         gamedata.orbital_colossus.play()
@@ -91,6 +92,8 @@ struct TriviaScene (
                 } else {
                     gamedata.right.play()
                 }
+
+                this.disco = !any_incorrect
             }
         }
 
@@ -155,6 +158,22 @@ struct TriviaScene (
         } else {
             captDrawTexture(textures.black, 64.0f, 16.0f, captViewWidth() - 128.0f, 64.0f)
             drawTextCentered("which of the following is true? ".marquee(cast int (1 + 32.0f * (glfwGetTime() - this.shuffle_start))), _captain_font, 16.0f, captViewWidth() / 2.0f, 48.0f)
+        }
+
+        if this.feedback_start != NEVER && this.disco {
+            const since_feedback_start double = glfwGetTime() - this.feedback_start
+            angle float = since_feedback_start / 2.0f * 2.0f * PI * 2.0f
+
+            captDrawOpacity(since_feedback_start <= 0.5f ? since_feedback_start : since_feedback_start <= 1.5f ? 0.5f : 2.0f - since_feedback_start)
+
+            transformation POD Matrix4f = undef
+            transformation.identity()
+            transformation.translate(captViewWidth() / 2.0f, captViewHeight() / 2.0f, 0.0f)
+            transformation.rotate(angle, 0.0f, 0.0f, 1.0f)
+            transformation.scale(captViewWidth() * 1.5f, captViewWidth() * 1.5f, 1.0f)
+            transformation.translate(-0.5f, -0.5f, 0.0f)
+            captDrawTextureUsingModelAndTransformation(_captain_model, textures.disco, transformation)
+            captDrawOpacity(1.0f)
         }
     }
 

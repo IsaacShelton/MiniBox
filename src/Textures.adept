@@ -70,6 +70,7 @@ struct Textures (
     smoke3,
     smoke4,
     bloodsplat,
+    disco,
     bitmap_font_black CaptTexture
 ) {
     func load {

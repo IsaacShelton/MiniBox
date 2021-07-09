@@ -13,7 +13,7 @@ import "HurdleScene.adept"
 import "BombScene.adept"
 import "TriviaScene.adept"
 
-define NUM_FACTS = 120
+define NUM_FACTS = 180
 
 struct GameData (
     scene *Scene,
