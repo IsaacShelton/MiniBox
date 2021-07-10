@@ -6,7 +6,6 @@ enum Character (
     ELLIE,
     ISAAC,
     ZACK,
-    NONE,
     JIMMY,
     THIEF,
     CROOK,
@@ -15,7 +14,8 @@ enum Character (
     PICKLE,
     ROBOT,
     TALLIE,
-    JEFF
+    JEFF,
+    NONE
 )
 
 func getName(character Character) String {
@@ -35,7 +35,7 @@ func getName(character Character) String {
     case Character::JEFF,   return "Jeff"
     case Character::NONE,  // do nothing
     }
-    return "unknown"
+    return "unknwn"
 }
 
 func getIdleTexture(character Character) CaptTexture {
@@ -84,4 +84,11 @@ func getWalkTexturePointer(character Character) *CaptTexture {
     case Character::NONE   // do nothing
     }
     return &textures.black
+}
+
+func getCarTexture(character Character) CaptTexture {
+    if character as usize >= Character::NONE as usize, return textures.black
+
+    // DANGEROUS: Relying on car textures being in order with correct padding
+    return (&textures.car1 as *CaptTexture)[character as usize]
 }

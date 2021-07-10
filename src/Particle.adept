@@ -1,7 +1,16 @@
 
 import "Animation.adept"
 
-struct Particle (b2_x, b2_y, screen_w, screen_h float, animation Animation)
+struct Particle (b2_x, b2_y, screen_w, screen_h float, animation Animation) {
+    func update bool {
+        // Returns whether should die
+        if this.animation.atEnd(), return true
+        
+        // Otherwise just continue animation
+        this.animation.update()
+        return false
+    }
+}
 
 func particle(b2_x, b2_y, screen_w, screen_h float, animation Animation) Particle {
     p POD Particle

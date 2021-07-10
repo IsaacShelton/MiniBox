@@ -171,8 +171,7 @@ struct BombScene (
         }
 
         each Particle in this.particles {
-            if it.animation.atEnd(), this.particles.remove(idx--); continue
-            it.animation.update()
+            if it.update(), this.particles.remove(idx--); continue
         }
 
         each Bomb in this.bombs {

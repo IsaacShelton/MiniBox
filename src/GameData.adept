@@ -12,6 +12,7 @@ import "WinnerScene.adept"
 import "HurdleScene.adept"
 import "BombScene.adept"
 import "TriviaScene.adept"
+import "BumperScene.adept"
 
 define NUM_FACTS = 180
 

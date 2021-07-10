@@ -71,6 +71,22 @@ struct Textures (
     smoke4,
     bloodsplat,
     disco,
+    space,
+    plate,
+    earth,
+    car1,
+    car2,
+    car3,
+    car4,
+    car5,
+    car6,
+    car7,
+    car8,
+    car9,
+    car10,
+    car11,
+    car12,
+    car13,
     bitmap_font_black CaptTexture
 ) {
     func load {

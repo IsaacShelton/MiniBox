@@ -1,0 +1,357 @@
+
+import math
+import Optional
+import "Scene.adept"
+import "drawing.adept"
+
+struct BumperScene (
+    struct Scene,
+    started bool,
+    message String,
+    message_x float,
+    world *b2World,
+    friction_body *b2Body,
+    cars 4 <BumperCar> Optional,
+    winner int,
+    won_when double,
+    particles <Particle> List
+) {
+    func enter {
+        this.world = new b2World
+        gravity POD b2Vec2 = POD b2Vec2(0.0f, 0.0f)
+        b2World(this.world, &gravity)
+
+        // Create ground body
+        if true {
+            bodydef b2BodyDef = b2BodyDef()
+            bodydef.type = b2_staticBody
+            
+            b2_w float = 4.0f * 0.5f * captViewWidth() / PPM
+            b2_h float = 4.0f * 0.5f * captViewHeight() / PPM
+            toB2Coords(captViewWidth() / 2.0f, captViewHeight() / 2.0f, undef b2_x float, undef b2_y float)
+            bodydef.position.Set(b2_x, b2_y)
+            body *b2Body = this.world.CreateBody(&bodydef)
+
+            box b2PolygonShape = b2PolygonShape()
+            box.SetAsBox(b2_w, b2_h)
+            body.CreateFixture(&box as *b2Shape, 0.0f)
+            this.friction_body = body
+        }
+
+        this.winner = -1
+        this.won_when = NEVER
+    }
+
+    func exit {
+        if this.world {
+            this.world.__defer__()
+            delete this.world
+        }
+    }
+
+    func step {
+        unless this.world, return
+
+        define time_step = 1.0f / 60.0f
+        define velocity_iterations = 6
+        define position_iterations = 2
+
+        this.world.Step(time_step, velocity_iterations, position_iterations)
+
+        unless this.started, each Gamepad in static gamedata.gamepads {
+            if it.start() {
+                this.started = true
+                this.showMessage("Use A to instantly boost!")
+                this.createPlayers()
+            }
+        }
+
+        unless this.started, return
+
+        each Gamepad in static gamedata.gamepads {
+            player_idx int = it.id - GLFW_JOYSTICK_1
+
+            unless this.cars[player_idx].has && this.cars[player_idx].getPointer().died_when == NEVER, continue
+
+            car *BumperCar = this.cars[player_idx].getPointer()
+            force POD b2Vec2
+
+            if it.rightHeld(), force.x += 1.0f
+            if it.leftHeld(),  force.x -= 1.0f
+            if it.upHeld(),    force.y += 1.0f
+            if it.downHeld(),  force.y -= 1.0f
+            
+            force.Normalize()
+            force.MultiplyAssign(10.0f)
+            car.body.ApplyForceToCenter(&force, true)
+
+            if it.a() {
+                force.MultiplyAssign(0.5f)
+                car.body.ApplyLinearImpulseToCenter(&force, true)
+
+                this.particles.add(particle(car.body.GetPosition().x, car.body.GetPosition().y, 32.0f, 32.0f, gamedata.smoke_animation.newChildInstance()))
+            }
+
+            if force.x != 0.0f || force.y != 0.0f {
+                angle float = car.body.GetAngle()
+                target_angle float = atan2f(force.y, force.x) + PI / 2.0f
+
+                torque float = 5.0f * normalizeFloat(radiansDifference(angle, target_angle))
+                car.body.ApplyTorque(torque, false)
+            }
+        }
+
+        each Particle in this.particles {
+            if it.update(), this.particles.remove(idx--); continue
+        }
+
+        remaining usize = 0
+        last_alive int = -1
+        each <BumperCar> Optional in static this.cars {
+            unless it.has, continue
+
+            car *BumperCar = it.getPointer()
+            b2_position *b2Vec2 = car.body.GetPosition()
+            
+            toScreenCoords(b2_position.x, b2_position.y, undef screen_x float, undef screen_y float)
+
+            if car.died_when == NEVER && distance(screen_x, screen_y, captViewWidth() / 2.0f, captViewHeight() / 2.0) > 200.0f {
+                car.died_when = glfwGetTime()
+            }
+
+            if car.died_when != NEVER && glfwGetTime() - car.died_when > 2.0 {
+                // Destroy car
+                this.world.DestroyBody(car.body)
+
+                // Die completely if no lives left
+                if car.lives == 0 {
+                    cars_array POD <<BumperCar> Optional> Array = array(this.cars at 0, 4)
+                    place usize = cars_array.count() + 1
+                    if place > 1, gamedata.scores[car.player_idx] += (5 - place) * 3
+                    it.rid()
+                    continue
+                }
+
+                // Otherwise decrease life count
+                if this.won_when != NEVER, car.lives--
+
+                // And respawn
+                car.body = this.newPlayerBody()
+                car.died_when = NEVER
+            }
+
+            last_alive = idx as int
+            remaining++
+        }
+
+        if this.won_when == NEVER && remaining <= 1 {
+            this.winner = last_alive
+            this.won_when = glfwGetTime()
+
+            if this.winner != -1 {
+                car *<BumperCar> Optional = &this.cars[this.winner]
+                gamedata.scores[this.winner] += 100 + (car.has ? 13 * car.getPointer().lives : 0)
+            }
+        }
+
+        this.message_x -= 32.0f / 60.0f
+
+        if this.message_x < -1.0f * captTextCharacterWidthForScale(12.0f) * this.message.length as float - 512.0f {
+            this.showMessage(this.randomMessage())
+        }
+
+        if this.won_when != NEVER && glfwGetTime() - this.won_when > 5.0 {
+            gamedata.setScene(new ScoreScene)
+            return
+        }
+    }
+
+    func draw {
+        // Draw space and stars background
+        const space_tile_h float = 1536.0f / 2.0f
+        define space_scroll_speed = 64.0f
+        captDrawTextureTiled(textures.space, 0.0f, 0.0f - (glfwGetTime() * space_scroll_speed) % space_tile_h, 2048.0f / 2.0f, space_tile_h, 2048.0f, space_tile_h * 3.0f)
+
+        // Draw background plate
+        captDrawTexture(textures.earth, captViewWidth() / 2.0f - 200.0f, captViewHeight() / 2.0f - 200.0f, 400.0f, 400.0f)
+
+        // Draw how-to-play instructions
+        unless this.started {
+            captDrawTexture(textures.black, 64.0f, captViewHeight() / 2.0f - 80.0f, captViewWidth() - 128.0f, 160.0f)
+            drawTextCentered("Knock other players off the floating platform,", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f - 24.0f)
+            drawTextCentered("The last remaining player wins!", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f + 24.0f)
+            return
+        }
+
+        each Particle in static this.particles {
+            drawTextureForBox2D(it.animation.now(), it.b2_x, it.b2_y, it.screen_w / PPM, it.screen_h / PPM, 0.0f)
+        }
+
+        each <BumperCar> Optional in static this.cars {
+            unless it.has, continue
+
+            car *BumperCar = it.getPointer()
+            character Character = gamedata.characters[car.player_idx]
+            position *b2Vec2 = car.body.GetPosition()
+            angle float = car.body.GetAngle()
+            scale float = 1.0f
+
+            if car.died_when != NEVER {
+                scale = clamp(1.0f - 2.0f * (glfwGetTime() - car.died_when) / 2.0f, 0.0f, 1.0f)
+            }
+
+            drawTextureForBox2D(getCarTexture(character), position.x, position.y, scale * 25.0f / PPM, scale * 44.0f / PPM, angle)
+            drawTextureForBox2D(getIdleTexture(character), position.x, position.y, scale * 16.0f / PPM, scale * 16.0f / PPM, 0.0f)
+        }
+
+        if true {
+            drawTextWithFont(this.message, this.message_x, 18.0f, _captain_font, 10.0f)
+        }
+
+        alive int = 0
+
+        repeat 4 using reverse_idx {
+            const idx usize = 3 - reverse_idx
+            const character Character = gamedata.characters[idx]
+
+            if character == Character::NONE || !this.cars[idx].has, continue
+
+            const lives int = this.cars[idx].getPointer().lives
+
+            define font_size = 12.0f
+            drawTextWithFont("P% % - % lives" % (idx + 1) % pad(getName(character), 6) % lives, captViewWidth() - captTextCharacterWidthForScale(font_size) * 20.0f, captViewHeight() - 4.0f - (font_size * 24.0f / 16.0f) * cast float (alive + 1), _captain_font, font_size)
+            alive++
+        }
+
+        if this.won_when != NEVER {
+            captDrawTexture(textures.black, 64.0f, captViewHeight() / 2.0f - 40.0f, captViewWidth() - 128.0f, 80.0f)
+
+            if this.winner != -1 {
+                drawTextCentered("P% % wins!" % (this.winner + 1) % getName(gamedata.characters[this.winner]), _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f)
+            } else {
+                drawTextCentered("Nobody wins!", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f) 
+            }
+        }
+    }
+
+    func createPlayers {
+        angle float = PI / 4.0f
+        distance float = 128.0f
+
+        each Gamepad in static gamedata.gamepads {
+            player_idx int = it.id - GLFW_JOYSTICK_1
+
+            this.maybeSpawnPlayer(player_idx)
+        }
+    }
+
+    func maybeSpawnPlayer(player_idx usize) successful {
+        if gamedata.characters[player_idx] == Character::NONE, return false
+
+        this.cars[player_idx] = some(bumperCar(player_idx, this.newPlayerBody()))
+        return true
+    }
+
+    func newPlayerBody() *b2Body {
+        character_shape b2PolygonShape = b2PolygonShape()
+        character_shape.SetAsBox(0.5f * 25.0f / PPM, 0.5f * 44.0f / PPM)
+
+        toB2Coords(captViewWidth() / 2.0f, captViewHeight() / 2.0f, undef b2_x float, undef b2_y float)
+
+        bodydef b2BodyDef = b2BodyDef()
+        bodydef.type = b2_dynamicBody
+        bodydef.position.Set(b2_x, b2_y)
+
+        body *b2Body = this.world.CreateBody(&bodydef)
+
+        fixturedef b2FixtureDef = b2FixtureDef()
+        fixturedef.shape = &character_shape as *b2Shape
+        fixturedef.density = 1.0f
+        fixturedef.friction = 0.1f
+        fixturedef.restitution = 0.9f
+
+        passive_friction b2FrictionJointDef = b2FrictionJointDef()
+        passive_friction.bodyA = body
+        passive_friction.bodyB = this.friction_body
+        passive_friction.maxForce = 1.0f
+        passive_friction.maxTorque = 3.0f
+
+        this.world.CreateJoint(cast *b2JointDef &passive_friction)
+        body.CreateFixture(&fixturedef)
+        return body
+    }
+
+    func showMessage(message String) {
+        message.make()
+
+        this.message = message.commit()
+        this.message_x = captViewWidth() + 128.0f
+    }
+
+    func randomMessage() String {
+        messages <String> List = (embed "static_assets/joke_headlines.txt").splitIntoViews("\n")
+        return messages.get(random(messages.length)).clone()
+    }
+}
+
+struct BumperCar (
+    player_idx int,
+    body *b2Body,
+    died_when double,
+    lives int
+)
+
+func bumperCar(player_idx int, body *b2Body) BumperCar {
+    bc POD BumperCar
+    bc.player_idx = player_idx
+    bc.body = body
+    bc.died_when = NEVER
+    bc.lives = 5
+    return bc
+}
+
+func normalizeRadians(angle float) float {
+    define TWO_PI = 2.0f * PI
+    
+    while angle < 0.0f, angle += TWO_PI
+    while angle >= TWO_PI, angle -= TWO_PI
+    
+    return angle
+}
+
+func radiansDifference(raw_alpha float, raw_beta float) float {
+    // NOTE: Assumes 'alpha' and 'beta' are normalized
+    const alpha float = normalizeRadians(raw_alpha)
+    const beta  float = normalizeRadians(raw_beta)
+
+    const clockwise float = radiansDistanceClockwise(alpha, beta)
+    const counter_clockwise float = radiansDistanceCounterClockwise(alpha, beta)
+
+    return clockwise < counter_clockwise ? -1.0f * clockwise : counter_clockwise
+}
+
+func radiansDistanceCounterClockwise(normalized_alpha, normalized_beta float) float {
+    // NOTE: Assumes 'alpha' and 'beta' are normalized
+    define alpha = normalized_alpha
+    define beta  = normalized_beta
+    
+    return beta > alpha ? beta - alpha : beta + 2.0f * PI - alpha
+}
+
+func radiansDistanceClockwise(normalized_alpha, normalized_beta float) float {
+    // NOTE: Assumes 'alpha' and 'beta' are normalized
+    define alpha = normalized_alpha
+    define beta  = normalized_beta
+
+    return beta < alpha ? alpha - beta : alpha + 2.0f * PI - beta
+}
+
+func normalizeFloat(value float) float {
+    return value < 0.0f ? -1.0f : value > 0.0f ? 1.0f : 0.0f
+}
+
+func count(this *<<$T> Optional> Array) usize {
+    count usize = 0
+    repeat this.length, if this.items[idx].has, count++
+    return count
+}
