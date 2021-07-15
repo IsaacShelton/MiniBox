@@ -17,6 +17,8 @@ struct BumperScene (
     particles <Particle> List
 ) {
     func enter {
+        gamedata.wasteland_overdrive.play()
+        
         this.world = new b2World
         gravity POD b2Vec2 = POD b2Vec2(0.0f, 0.0f)
         b2World(this.world, &gravity)
@@ -43,6 +45,8 @@ struct BumperScene (
     }
 
     func exit {
+        gamedata.wasteland_overdrive.stop()
+
         if this.world {
             this.world.__defer__()
             delete this.world
@@ -235,9 +239,6 @@ struct BumperScene (
     }
 
     func createPlayers {
-        angle float = PI / 4.0f
-        distance float = 128.0f
-
         each Gamepad in static gamedata.gamepads {
             player_idx int = it.id - GLFW_JOYSTICK_1
 

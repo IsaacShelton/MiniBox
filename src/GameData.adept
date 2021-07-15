@@ -13,6 +13,7 @@ import "HurdleScene.adept"
 import "BombScene.adept"
 import "TriviaScene.adept"
 import "BumperScene.adept"
+import "PizzaScene.adept"
 
 define NUM_FACTS = 180
 
@@ -27,15 +28,23 @@ struct GameData (
     raining_bits,
     cant_stop_winning,
     dark_ambience
-    orbital_colossus PlayableSound,
+    orbital_colossus,
+    wasteland_overdrive,
+    trouble_makers PlayableSound,
     well_done,
     explosion,
-    splat Sound,
+    splat,
+    eat Sound,
     shuffle,
     right,
     wrong,
-    tick PlayableSound,
+    tick,
+    ding,
+    imwalkinghere,
+    mamamia,
+    mamamiagod PlayableSound,
     winner int,
+    pizza_textures <CaptTexture> Grid,
 
     bomb_animation
     splode_animation
@@ -56,6 +65,8 @@ struct GameData (
 
         this.lies = embed 'static_assets/lies.txt'.splitIntoViews("\n")
         this.lies.length = NUM_FACTS
+
+        this.createPizzaTextures()
         
         // NOTE: We will neglect destroy()ing our sounds
 
@@ -65,15 +76,22 @@ struct GameData (
         this.cant_stop_winning.load(where() + "assets/cant_stop_winning.ogg", true, 0.8f)
         this.dark_ambience.load(where() + "assets/dark_ambience.ogg", true, 1.0f)
         this.orbital_colossus.load(where() + "assets/orbital_colossus.ogg", true, 0.6f)
+        this.wasteland_overdrive.load(where() + "assets/wasteland_overdrive.ogg", true, 1.0f)
+        this.trouble_makers.load(where() + "assets/trouble_makers.ogg", true, 1.0f)
         #end
 
         this.well_done.load(where() + "assets/well_done.ogg", false, 1.5f)
         this.explosion.load(where() + "assets/explosion.wav", false, 1.5f)
         this.splat.load(where() + "assets/splat.wav", false, 1.5f)
+        this.eat.load(where() + "assets/eat.wav", false, 0.1f)
         this.shuffle.load(where() + "assets/shuffle.wav", false, 1.5f)
         this.right.load(where() + "assets/right.wav", false, 1.5f)
         this.wrong.load(where() + "assets/wrong.wav", false, 1.5f)
         this.tick.load(where() + "assets/tick.ogg", false, 1.5f)
+        this.ding.load(where() + "assets/ding.wav", false, 1.5f)
+        this.imwalkinghere.load(where() + "assets/imwalkinghere.wav", false, 1.0f)
+        this.mamamia.load(where() + "assets/mamamia.wav", false, 1.0f)
+        this.mamamiagod.load(where() + "assets/mamamiagod.wav", false, 1.0f)
 
         this.winner = -1
 
@@ -113,6 +131,23 @@ struct GameData (
         this.bloodsplat_animation = animation({
             &textures.bloodsplat
         } as <*CaptTexture> List, 2400)
+    }
+
+    func createPizzaTextures {
+        empty CaptTexture = undef
+        empty.invalidate()
+
+        this.pizza_textures = grid(10, 10, empty)
+
+        repeat 10 using x, repeat 10 using y {
+            if ( (y == 0 || y == 9) && (x <= 1 || x >= 8) ) ||
+               ( (y == 1 || y == 8) && (x == 0 || x == 9) ) {
+                continue
+            }    
+
+            filename String = sprintf("slice_%d_%d.png", y, x)
+            this.pizza_textures[gridCoord(x, y)] = captTexture(where() + "assets/" + filename, true)
+        }
     }
     
     func reset {

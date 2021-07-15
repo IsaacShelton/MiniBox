@@ -1,0 +1,323 @@
+
+import math
+import Optional
+import Vector3f
+import "Scene.adept"
+import "drawing.adept"
+
+define PIZZA_TILE_W = 400.0f / 10.0f
+define PIZZA_TILE_H = 406.0f / 10.0f
+
+struct PizzaScene (
+    struct Scene,
+    started bool,
+    pizza <bool> Grid,
+    positions 4 <Vector2f> Optional,
+    movement 4 Vector2f,
+    eaten 4 int,
+    pieces_per_pizza int,
+    total_pieces int,
+    over_when double,
+    pizzas_left int,
+    pizza_position Vector3f,
+    pizza_rotation float,
+    mode PizzaMode,
+    winner_text String,
+    start_walk_when 4 double,
+    speakers <SoundPlayer> List
+) {
+    func enter {
+        gamedata.trouble_makers.play()
+        this.mode = PizzaMode::IDENTITY
+
+        this.makePizza()
+        this.pieces_per_pizza = this.tallyPieces()
+        this.total_pieces = this.pieces_per_pizza
+        this.over_when = NEVER
+        this.pizzas_left = 5
+
+        each double in static this.start_walk_when, it = NEVER
+    }
+    
+    func exit {
+        gamedata.trouble_makers.stop()
+
+        each SoundPlayer in static this.speakers {
+            it.stop()
+            it.destroy()
+        }
+    }
+
+    func step {
+        unless this.started, each Gamepad in static gamedata.gamepads {
+            if it.start() {
+                this.started = true
+                this.createPlayers()
+            }
+        }
+
+        this.updatePizza()
+
+        unless this.started, return
+
+        if this.over_when != NEVER {
+            define since_over = glfwGetTime() - this.over_when
+
+            if since_over > 8.0 {
+                gamedata.setScene(new ScoreScene)
+                return
+            }
+        }
+
+        each Gamepad in static gamedata.gamepads {
+            index int = it.id - GLFW_JOYSTICK_1
+
+            unless this.positions[index].has, continue
+
+            position *Vector2f = this.positions[idx].getPointer()
+            const speed float = 4.0f
+
+            movement Vector2f = vector2f(it.x as float, it.y as float * 0.5f)
+            movement.normalize()
+
+            if movement.x == 0.0f && movement.y == 0.0f {
+                this.start_walk_when[index] = NEVER
+            } else if this.start_walk_when[index] == NEVER {
+                this.start_walk_when[index] = glfwGetTime()
+            }
+
+            this.movement[idx] = (movement + this.movement[idx] * 4.0f) * 0.2f
+            position.add(this.movement[idx] * speed)
+
+            position.clamp(0.0f, captViewWidth(), 0.0f, captViewHeight())
+
+            matrix POD Matrix4f = this.calculatePizzaMatrix(position.x, position.y)
+            rel_pizza_position Vector3f = matrix * vector3f(position.x - this.pizza_position.x, position.y + 30.0f - this.pizza_position.y, 0.0f)
+
+            pizza_x int = cast int ((rel_pizza_position.x + 200.0f) / PIZZA_TILE_W)
+            pizza_y int = cast int ((rel_pizza_position.y + 203.0f) / PIZZA_TILE_H)
+
+            unless pizza_x >= 0 && pizza_x <= 9 && pizza_y >= 0 && pizza_y <= 9, continue
+            coord GridCoord = gridCoord(pizza_x, pizza_y)
+
+            if this.pizza[coord] {
+                this.eaten[index]++
+                this.pizza[coord] = false
+                this.playSoundWithSpeaker(gamedata.eat)
+            }
+        }
+
+        if this.over_when == NEVER && this.isGameOver() {
+            this.over_when = glfwGetTime()
+
+            player_idx int = -1
+            max_score int = 0
+
+            each int in static this.eaten {
+                if it > max_score {
+                    max_score = it
+                    player_idx = idx
+                }
+            }
+
+            unless player_idx == -1 {
+                this.winner_text = "P" + (player_idx + 1) + " " + getName(gamedata.characters[player_idx]) + " wins with " + max_score + " pieces eaten"
+                gamedata.scores[player_idx] += 100
+            }
+        }
+
+        // Remove old speakers
+        each SoundPlayer in this.speakers {
+            unless it.isPlaying() {
+                it.destroy()
+                this.speakers.remove(idx--)
+            }
+        }
+    }
+
+    func draw {
+        // Draw background
+        drawTileWallBackground()
+
+        // Draw background pizza
+        repeat 10 using x, repeat 10 using y {
+            unless this.pizzaPortionExists(x, y), continue
+
+            texture CaptTexture = gamedata.pizza_textures[gridCoord(x, y)]
+
+            xpos float = -200.0f + x as float * PIZZA_TILE_W
+            ypos float = -203.0f + y as float * PIZZA_TILE_H
+            local_matrix POD Matrix4f = POD this.calculatePizzaMatrix(xpos, ypos)
+            local_matrix.scale(PIZZA_TILE_W, PIZZA_TILE_H, 0.0f)
+
+            captDrawTextureUsingModelAndTransformation(_captain_model, texture, local_matrix)
+        }
+
+        // Draw how-to-play instructions
+        unless this.started {
+            captDrawTexture(textures.black, 64.0f, captViewHeight() / 2.0f - 80.0f, captViewWidth() - 128.0f, 160.0f)
+            drawTextCentered("Eat the pizzas", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f - 24.0f)
+            drawTextCentered("Whoever eats the most wins!", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f + 24.0f)
+            return
+        }
+        
+        each <Vector2f> Optional in static this.positions {
+            unless it.has, continue
+
+            position *Vector2f = it.getPointer()
+            character Character = gamedata.characters[idx]
+            texture CaptTexture = getIdleTexture(character)
+
+            if this.start_walk_when[idx] != NEVER {
+                define time_walking = glfwGetTime() - this.start_walk_when[idx]
+                
+                if time_walking % 0.5 < 0.25 {
+                    texture = getWalkTexture(character)
+                }
+            }
+
+            if this.movement[idx].x < 0.0f {
+                captDrawTexture(texture, position.x - 32.0f + 64.0f, position.y - 32.0f, -64.0f, 64.0f)
+            } else {
+                captDrawTexture(texture, position.x - 32.0f, position.y - 32.0f, 64.0f, 64.0f)
+            }
+        }
+
+        // Draw game over
+        if this.over_when != NEVER {
+            captDrawOpacity(0.7f)
+            captDrawTexture(textures.black, captViewWidth() / 8.0f, captViewHeight() / 2.0f - 64.0f, 6.0f * captViewWidth() / 8.0f, 128.0f)
+            captDrawOpacity(1.0f)
+
+            text String = glfwGetTime() - this.over_when < 3.0 ? "Game over" : this.winner_text
+            drawTextCentered(text, _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f)
+            return
+        }
+    }
+
+    func createPlayers {
+        each Gamepad in static gamedata.gamepads {
+            player_idx int = it.id - GLFW_JOYSTICK_1
+            if gamedata.characters[player_idx] == Character::NONE, continue
+
+            position POD Vector2f
+            position.x = player_idx == 0 || player_idx == 2 ? 64.0f : captViewWidth() - 64.0f
+            position.y = player_idx <= 1 ? 64.0f : captViewHeight() - 64.0f
+
+            this.positions[player_idx] = some(position)
+        }
+    }
+
+    func updatePizza {
+        exhaustive switch this.mode {
+        case PizzaMode::IDENTITY
+            this.pizza_position = vector3f(captViewWidth() / 2.0f, captViewHeight() / 2.0f, 0.0f)
+            this.pizza_rotation = 0.0f
+        case PizzaMode::ROTATION
+            this.pizza_position = vector3f(captViewWidth() / 2.0f, captViewHeight() / 2.0f, 0.0f)
+            this.pizza_rotation += 2.0f / PI / 60.0f
+        case PizzaMode::SINE
+            this.pizza_position = vector3f(captViewWidth() / 2.0f + sin(glfwGetTime()) * 200.0f, captViewHeight() / 2.0f, 0.0f)
+            this.pizza_rotation += 0.0f
+        case PizzaMode::TAN
+            const less_pi float = PI - 0.002
+            this.pizza_position = vector3f(captViewWidth() / 2.0f + tan((glfwGetTime() / 2.0f) % less_pi - less_pi / 2.0f) * 200.0f, captViewHeight() / 2.0f, 0.0f)
+            this.pizza_rotation += 0.5f * PI / 60.0f
+        case PizzaMode::CRAZY
+            this.pizza_position = vector3f(captViewWidth() / 2.0f + sin(glfwGetTime()) * 200.0f, captViewHeight() / 2.0f - sin(glfwGetTime() * 3.0f) * 100.0f, 0.0f)
+            this.pizza_rotation += (sin(glfwGetTime()) + 1.0f) / 2.0f * -2.0f * PI / 60.0f
+        }
+    }
+
+    func makePizza {
+        this.pizza = grid(10, 10, true)
+
+        // No pizza in upper left corner
+        this.pizza[gridCoord(0, 0)] = false
+        this.pizza[gridCoord(1, 0)] = false
+        this.pizza[gridCoord(0, 1)] = false
+
+        // No pizza in lower left corner
+        this.pizza[gridCoord(0, 9)] = false
+        this.pizza[gridCoord(1, 9)] = false
+        this.pizza[gridCoord(0, 8)] = false
+
+        // No pizza in top right corner
+        this.pizza[gridCoord(8, 0)] = false
+        this.pizza[gridCoord(9, 0)] = false
+        this.pizza[gridCoord(9, 1)] = false
+
+        // No pizza in bottom right corner
+        this.pizza[gridCoord(8, 9)] = false
+        this.pizza[gridCoord(9, 9)] = false
+        this.pizza[gridCoord(9, 8)] = false
+    }
+
+    func tallyPieces int {
+        count int = 0
+        each bool in static this.pizza, count += it as int
+        return count
+    }
+
+    func isGameOver bool {
+        total_eaten int = 0
+        each int in static this.eaten, total_eaten += it
+        if total_eaten == this.total_pieces {
+            gamedata.ding.play()
+
+            switch --this.pizzas_left {
+            case 3
+                gamedata.mamamia.play()
+            case 2
+                gamedata.mamamiagod.play()
+            case 1
+                gamedata.mamamia.play()
+            case 0
+                gamedata.imwalkinghere.play()
+            }
+
+            if this.pizzas_left == 0 {
+                return true
+            } else {
+                this.makePizza()
+                this.setNextMode()
+                this.updatePizza()
+                this.total_pieces += this.pieces_per_pizza
+                return false
+            }
+        }
+        return false
+    }
+
+    func pizzaPortionExists(x, y int) bool {
+        return this.pizza[gridCoord(x, y)]
+    }
+
+    func setNextMode {
+        this.mode = (5 - this.pizzas_left) as PizzaMode
+    }
+
+    func calculatePizzaMatrix(local_x, local_y float) Matrix4f {
+        m POD Matrix4f
+        m.translateFromIdentity(this.pizza_position)
+        m.rotate(this.pizza_rotation, 0.0f, 0.0f, 1.0f)
+        m.translate(local_x, local_y, 0.0f)
+        return m
+    }
+
+    func playSoundWithSpeaker(sound Sound){
+        // Keep number of spekers down
+        if this.speakers.length > 16 {
+            this.speakers.getPointer(0).stop()
+            this.speakers.getPointer(0).destroy()
+            this.speakers.remove(0)
+        }
+
+        s SoundPlayer
+        s.create()
+        s.play(sound)
+        this.speakers.add(s)
+    }
+}
+
+enum PizzaMode (IDENTITY, ROTATION, SINE, TAN, CRAZY)

@@ -27,10 +27,7 @@ struct TriviaScene (
         this.remaining = 5
 
         repeat 4 {
-            if gamedata.characters[idx] == Character::NONE {
-                this.positions[idx] = none() ~> <Vector2f> Optional
-                continue
-            }
+            if gamedata.characters[idx] == Character::NONE, continue
 
             angle float = -1.0f * idx as float * 2.0f * PI / 4.0f - PI / 4.0f
             distance float = 64.0f
