@@ -44,8 +44,10 @@ func scene(impl *$SceneLike) *Scene {
     return impl as *Scene
 }
 
-func randomMinigame() *Scene {
-    switch random(6) {
+define NUM_MINIGAMES = 6
+
+func minigameFromNumber(number int) *Scene {
+    switch number {
     case 0, return scene(new HurdleScene)
     case 1, return scene(new BombScene)
     case 2, return scene(new TriviaScene)

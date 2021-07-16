@@ -39,7 +39,7 @@ struct ScoreScene (
         each Gamepad in static gamedata.gamepads {
             if can_continue && it.start() {
                 gamedata.winner = this.winner
-                gamedata.setScene(this.winner != -1 ? scene(new WinnerScene) : randomMinigame())
+                gamedata.setScene(this.winner != -1 ? scene(new WinnerScene) : gamedata.nextMinigame())
                 return
             }
         }

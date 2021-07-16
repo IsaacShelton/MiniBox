@@ -52,7 +52,9 @@ struct GameData (
     bomb_animation
     splode_animation
     smoke_animation,
-    bloodsplat_animation Animation
+    bloodsplat_animation Animation,
+
+    queue <int> List
 ) {
     func __defer__ {
         if this.scene, this.scene.__defer__()
@@ -221,6 +223,33 @@ struct GameData (
         repeat 10 {
             gamepad.just[idx] = prev_buttons[idx] != buttons[idx]
         }
+    }
+
+    func nextMinigame *Scene {
+        if this.queue.length == 0, this.fillQueue()
+        
+        next int = this.queue.get(0)
+        this.queue.remove(0)
+
+        return minigameFromNumber(next)
+    }
+
+    func fillQueue {
+        this.queue.clear()
+
+        taken <bool> Array = array(new bool * NUM_MINIGAMES, NUM_MINIGAMES)
+        defer delete taken.items
+
+        until this.queue.length == NUM_MINIGAMES {
+            choice int = random(NUM_MINIGAMES)
+            if taken[choice], continue
+
+            taken[choice] = true
+            this.queue.add(choice)
+        }
+
+        each int in this.queue, print(it)
+        newline()
     }
 }
 
