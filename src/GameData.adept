@@ -247,9 +247,6 @@ struct GameData (
             taken[choice] = true
             this.queue.add(choice)
         }
-
-        each int in this.queue, print(it)
-        newline()
     }
 }
 
