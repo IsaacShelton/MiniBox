@@ -14,6 +14,7 @@ import "BombScene.adept"
 import "TriviaScene.adept"
 import "BumperScene.adept"
 import "PizzaScene.adept"
+import "SlimeScene.adept"
 
 define NUM_FACTS = 180
 
@@ -30,7 +31,8 @@ struct GameData (
     dark_ambience
     orbital_colossus,
     wasteland_overdrive,
-    trouble_makers PlayableSound,
+    trouble_makers,
+    gaseous_tethanus PlayableSound,
     well_done,
     explosion,
     splat,
@@ -42,7 +44,8 @@ struct GameData (
     ding,
     imwalkinghere,
     mamamia,
-    mamamiagod PlayableSound,
+    mamamiagod,
+    squish PlayableSound,
     winner int,
     pizza_textures <CaptTexture> Grid,
 
@@ -78,6 +81,7 @@ struct GameData (
         this.orbital_colossus.load(where() + "assets/orbital_colossus.ogg", true, 0.6f)
         this.wasteland_overdrive.load(where() + "assets/wasteland_overdrive.ogg", true, 1.0f)
         this.trouble_makers.load(where() + "assets/trouble_makers.ogg", true, 1.0f)
+        this.gaseous_tethanus.load(where() + "assets/gaseous_tethanus.ogg", true, 1.0f)
         #end
 
         this.well_done.load(where() + "assets/well_done.ogg", false, 1.5f)
@@ -92,6 +96,7 @@ struct GameData (
         this.imwalkinghere.load(where() + "assets/imwalkinghere.wav", false, 1.0f)
         this.mamamia.load(where() + "assets/mamamia.wav", false, 1.0f)
         this.mamamiagod.load(where() + "assets/mamamiagod.wav", false, 1.0f)
+        this.squish.load(where() + "assets/squish.wav", false, 1.0f)
 
         this.winner = -1
 

@@ -1,0 +1,197 @@
+
+import "Scene.adept"
+import "drawing.adept"
+
+struct SlimeScene (
+    struct Scene,
+    started bool,
+    rel_x 4 float,
+    start_when double,
+    slimes_when double,
+    points 4 int,
+    slime_rel_x float,
+    left bool,
+    dead 4 bool,
+    slime_y float,
+    over_when double,
+    winner_text String
+) {
+    func enter {
+        gamedata.gaseous_tethanus.play()
+
+        repeat 4, this.rel_x[idx] = -64.0f
+        this.start_when = NEVER
+        this.slimes_when = NEVER
+        this.over_when = NEVER
+
+        repeat 4 {
+            if gamedata.characters[idx] == Character::NONE, this.dead[idx] = true
+        }
+    }
+
+    func exit {
+        gamedata.gaseous_tethanus.stop()
+    }
+
+    func step {
+        unless this.started, each Gamepad in static gamedata.gamepads {
+            if it.start() {
+                this.started = true
+                this.start_when = glfwGetTime()
+            }
+        }
+
+        unless this.started, return
+
+        this.slime_y = this.slimeFunction()
+
+        each Gamepad in static gamedata.gamepads {
+            player_idx int = it.id - GLFW_JOYSTICK_1
+
+            if this.dead[player_idx], continue
+
+            target_rel_x float = it.aHeld() ? 0.0f : -64.0f
+            this.rel_x[player_idx] = (3.0f * this.rel_x[player_idx] + target_rel_x) / 4.0f
+
+            const is_under bool = it.aHeld() == !this.left
+
+            if is_under && this.slimes_when != NEVER {
+                this.points[player_idx]++
+            }
+
+            if this.slime_y < 0.2 && is_under && this.slimes_when != NEVER {
+                this.dead[player_idx] = true
+                gamedata.squish.play()
+            }
+        }
+
+        target_slime_rel_x float = this.left ? -64.0f : 0.0f
+        this.slime_rel_x = (3.0f * this.slime_rel_x + target_slime_rel_x) / 4.0f
+
+        if this.slimes_when != NEVER && randomDouble() < 0.005 && this.slime_y > 0.9 {
+            this.left!!
+        }
+
+        if this.start_when != NEVER && glfwGetTime() - this.start_when > 3.0 && this.slimes_when == NEVER {
+            this.slimes_when = glfwGetTime()
+            this.slime_y = this.slimeFunction()
+        }
+
+        if this.over_when == NEVER {
+            this.handleGameOverCondition()
+        } else {
+            define since_over = glfwGetTime() - this.over_when
+
+            if since_over > 8.0 {
+                gamedata.setScene(new ScoreScene)
+                return
+            }
+        }
+    }
+    
+    func draw {
+        drawSkyBackground()
+
+        captDrawTextureTiled(textures.grass, 0.0f, captViewHeight() - 64.0f, 64.0f, 64.0f, captViewWidth(), 64.0f)
+
+        // Draw how-to-play instructions
+        unless this.started {
+            captDrawTexture(textures.black, 64.0f, captViewHeight() / 2.0f - 80.0f, captViewWidth() - 128.0f, 160.0f)
+            drawTextCentered("Don't get crushed by slime", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f - 24.0f)
+            drawTextCentered("Stay underneath the longest to win!", _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f + 24.0f)
+            return
+        }
+
+        repeat 4 {
+            character Character = gamedata.characters[idx]
+            if character == Character::NONE, continue
+
+            x float = this.getStandX(idx)
+            drawTextCentered(toString(this.points[idx]), textures.bitmap_font_black, 16.0f, x, 16.0f)
+
+            if this.dead[idx] {
+                captDrawTexture(getIdleTexture(character), this.rel_x[idx] + x - 48.0f, captViewHeight() - 64.0f - 16.0f, 96.0f, 16.0f)
+            } else {
+               captDrawTexture(getIdleTexture(character), this.rel_x[idx] + x - 32.0f, captViewHeight() - 64.0f - 64.0f, 64.0f, 64.0f) 
+            }
+            
+            if this.slimes_when != NEVER {
+                texture CaptTexture = this.slime_y < 0.2 ? textures.slime_crash : textures.slime
+                captDrawTexture(texture, x + this.slime_rel_x - 32.0f, captViewHeight() - 64.0f - 64.0f - this.slime_y * 320.0f, 64.0f, 64.0f)
+            }
+        }
+
+        if this.start_when != NEVER {
+            const since float = glfwGetTime() - this.start_when
+            if since < 3.0 && since % 0.5 < 0.25 {
+                drawTextCentered("hold a to move", textures.bitmap_font_black, 16.0f)
+            }
+        }
+        
+        // Draw game over
+        if this.over_when != NEVER {
+            captDrawOpacity(0.7f)
+            captDrawTexture(textures.black, captViewWidth() / 8.0f, captViewHeight() / 2.0f - 64.0f, 6.0f * captViewWidth() / 8.0f, 128.0f)
+            captDrawOpacity(1.0f)
+
+            text String = glfwGetTime() - this.over_when < 3.0 ? "Game over" : this.winner_text
+            drawTextCentered(text, _captain_font, 16.0f, captViewWidth() / 2.0f, captViewHeight() / 2.0f)
+            return
+        }
+    }
+
+    func getStandX(player_idx int) float {
+        area float = captViewWidth() - 256.0f
+        return (captViewWidth() - area) / 2.0f + player_idx as float * area / 3.0f
+    }
+
+    func slimeFunction(t float) float {
+        value float = sinf(powf(t, 1.5)) * cosf(3.0f * t) * sin(7.0f * t) * cos(11.0f * t + PI / 3.0f)
+        value = 1.0f - 2.0f * value / 0.7f
+        value = clamp(value, 0.0f, 1.0f)
+        return value
+    }
+
+    func slimeFunction() float {
+        factor float = clamp(10.0f - (glfwGetTime() - this.slimes_when) / 60.0f, 6.0f, 8.0f)
+        t float = (glfwGetTime() - this.slimes_when) as float / factor
+
+        return this.slimeFunction(t)
+    }
+
+    func handleGameOverCondition {
+        unless this.over_when == NEVER, return
+
+        alive int = 0
+        each bool in static this.dead, if !it, alive++
+
+        unless alive < 2 && this.slimes_when != NEVER, return
+        
+        // Count who has most points
+        // In the rare case of ties, whoever is first in line wins
+        highest int = 0
+        highest_idx int = -1
+        each int in static this.points {
+            if it > highest {
+                highest = it
+                highest_idx = idx
+            }
+        }
+
+        // If the one with the most points is dead, don't end the game yet
+        if alive == 1 && this.dead[highest_idx], return
+
+        // Otherwise end the game
+        this.over_when = glfwGetTime()
+
+        // And award points and announce winner
+        if highest_idx != -1 {
+            this.winner_text = "P" + (highest_idx + 1) + " " + getName(gamedata.characters[highest_idx]) + " wins!"
+            gamedata.scores[highest_idx] += 100
+        } else {
+            this.winner_text = "no contest"
+        }
+    }
+}
+
+struct Slime ()

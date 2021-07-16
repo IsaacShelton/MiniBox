@@ -87,6 +87,10 @@ struct Textures (
     car11,
     car12,
     car13,
+    slime,
+    slime_crash,
+    dirt,
+    grass,
     bitmap_font_black CaptTexture
 ) {
     func load {
