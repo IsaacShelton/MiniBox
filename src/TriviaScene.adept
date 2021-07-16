@@ -104,18 +104,18 @@ struct TriviaScene (
         }
 
         each Gamepad in static gamedata.gamepads {
-            index int = it.id - GLFW_JOYSTICK_1
+            player_idx int = it.id - GLFW_JOYSTICK_1
 
-            unless this.positions[index].has, continue
+            unless this.positions[player_idx].has, continue
 
-            position *Vector2f = this.positions[idx].getPointer()
+            position *Vector2f = this.positions[player_idx].getPointer()
             const speed float = 4.0f
 
             movement Vector2f = vector2f(it.x as float, it.y as float * 0.5f)
             movement.normalize()
 
-            this.movement[idx] = (movement + this.movement[idx] * 4.0f) * 0.2f
-            position.add(this.movement[idx] * speed)
+            this.movement[player_idx] = (movement + this.movement[player_idx] * 4.0f) * 0.2f
+            position.add(this.movement[player_idx] * speed)
 
             position.clamp(0.0f, captViewWidth(), 0.0f, captViewHeight())
         }

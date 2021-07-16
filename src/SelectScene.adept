@@ -73,34 +73,34 @@ struct SelectScene (
         }
 
         each Gamepad in static gamedata.gamepads {
-            array_index int = it.id - GLFW_JOYSTICK_1
+            player_idx int = it.id - GLFW_JOYSTICK_1
 
-            if array_index >= 4 || array_index < 0, continue
+            if player_idx >= 4 || player_idx < 0, continue
 
             if it.a() {
-                if this.enabled[array_index] {
-                    this.ready[array_index] = true
+                if this.enabled[player_idx] {
+                    this.ready[player_idx] = true
                 } else {
-                    this.enabled[array_index] = true
+                    this.enabled[player_idx] = true
                 }
             }
             if it.b() {
-                if this.ready[array_index] {
-                    this.ready[array_index] = false
+                if this.ready[player_idx] {
+                    this.ready[player_idx] = false
                 } else {
-                    this.enabled[array_index] = false
+                    this.enabled[player_idx] = false
                 }
             }
-            if it.x(), this.enabled[array_index] = false
+            if it.x(), this.enabled[player_idx] = false
             if it.select(), gamedata.setScene(new MainMenu); return
 
-            if it.right() && !this.ready[array_index] {
-                if ++this.selected[array_index] == cast int Character::NONE, this.selected[array_index] = 0
+            if it.right() && !this.ready[player_idx] {
+                if ++this.selected[player_idx] == cast int Character::NONE, this.selected[player_idx] = 0
             }
-            if it.left() && !this.ready[array_index] {
-                if this.selected[array_index]-- == 0, this.selected[array_index] = cast int Character::NONE - 1
+            if it.left() && !this.ready[player_idx] {
+                if this.selected[player_idx]-- == 0, this.selected[player_idx] = cast int Character::NONE - 1
             }
-            if it.start() && this.ready[array_index] {
+            if it.start() && this.ready[player_idx] {
                 gamedata.happy1.stop()
 
                 memset(gamedata.scores at 0, 0, sizeof int * 4)

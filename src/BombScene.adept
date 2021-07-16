@@ -147,10 +147,10 @@ struct BombScene (
         unless this.started, return
 
         each Gamepad in static gamedata.gamepads {
-            index int = it.id - GLFW_JOYSTICK_1
-            body *b2Body = this.players[index]
+            player_idx int = it.id - GLFW_JOYSTICK_1
+            body *b2Body = this.players[player_idx]
 
-            if body == null || this.won_when[index] != NEVER, continue
+            if body == null || this.won_when[player_idx] != NEVER, continue
 
             if it.rightHeld(){
                 impulse POD b2Vec2 = POD b2Vec2(0.5f, 0.0f)
